@@ -1,4 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  CLICK_THRESHOLDS,
+  CELL_DIVISION,
+  ANIMATION,
+  MOVEMENT,
+  PARTICLES,
+  FOOD,
+  BACKGROUND,
+  SPRING,
+} from '../constants/gameConstants';
 
 interface Position {
   x: number;
@@ -63,7 +73,10 @@ interface SquidMood {
   happinessLevel: number;
 }
 
-const SPRING_CONFIG = { stiffness: 0.18, damping: 0.8 };
+const SPRING_CONFIG = {
+  stiffness: SPRING.STIFFNESS,
+  damping: SPRING.DAMPING
+};
 
 // New component for the visual representation of the cell cluster
 const CellClusterVisual: React.FC = () => {
@@ -293,7 +306,11 @@ const BackgroundCell: React.FC<{
 };
 
 // New component for the squid/Cthulhu form
-const SquidForm: React.FC<{ isBlinking?: boolean; isHappy?: boolean }> = ({ isBlinking = false, isHappy = false }) => {
+const SquidForm: React.FC<{
+  isBlinking?: boolean;
+  isHappy?: boolean;
+  expression?: 'content' | 'trying' | 'eating';
+}> = ({ isBlinking = false, isHappy = false, expression = 'content' }) => {
   const [tentaclePhase, setTentaclePhase] = useState(0);
 
   useEffect(() => {
@@ -302,6 +319,18 @@ const SquidForm: React.FC<{ isBlinking?: boolean; isHappy?: boolean }> = ({ isBl
     }, 50);
     return () => clearInterval(interval);
   }, []);
+
+  const getMouthPath = () => {
+    switch (expression) {
+      case 'trying':
+        return `M40 60 Q50 65 60 60`;
+      case 'eating':
+        return `M35 60 Q50 75 65 60`;
+      case 'content':
+      default:
+        return `M40 60 Q50 70 60 60`;
+    }
+  };
 
   return (
     <svg
@@ -356,10 +385,7 @@ const SquidForm: React.FC<{ isBlinking?: boolean; isHappy?: boolean }> = ({ isBl
 
         {/* Mouth */}
         <path
-          d={`
-            M${isHappy ? '40' : '45'} 60
-            Q50 ${isHappy ? '70' : '65'} ${isHappy ? '60' : '55'} 60
-          `}
+          d={getMouthPath()}
           stroke="#2a4a8a"
           strokeWidth="2"
           fill="none"
@@ -476,7 +502,7 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
         borderRadius: '50%',
         opacity: particle.eaten ? 0 : particle.opacity,
         transform: 'translate(-50%, -50%)',
-        transition: 'all 0.3s ease-out',
+        transition: 'opacity 0.3s ease-out',
         filter: 'blur(1px)',
         boxShadow: '0 0 10px currentColor',
       }}
@@ -645,6 +671,10 @@ const Game: React.FC = () => {
   const [squidMood, setSquidMood] = useState<SquidMood>({ isHappy: false, happinessLevel: 0 });
   const [autoBlinkInterval, setAutoBlinkInterval] = useState<NodeJS.Timeout | null>(null);
 
+  // Add new state for target food position and squid expression
+  const [targetFoodPosition, setTargetFoodPosition] = useState<{ x: number; y: number } | null>(null);
+  const [squidExpression, setSquidExpression] = useState<'content' | 'trying' | 'eating'>('content');
+
   useEffect(() => {
     let running = true;
     function animate() {
@@ -716,16 +746,16 @@ const Game: React.FC = () => {
 
   // Calculate cell scale based on viewport
   const getCellScale = () => {
-    if (clickCount <= 1) return 0.0001;
+    if (clickCount <= CLICK_THRESHOLDS.INITIAL) return 0.0001;
 
-    if (clickCount >= 9800 && clickCount <= 10000) {
-      const progress = (clickCount - 9800) / 200;
+    if (clickCount >= CLICK_THRESHOLDS.PRE_EVOLUTION_START && clickCount <= CLICK_THRESHOLDS.PRE_EVOLUTION_END) {
+      const progress = (clickCount - CLICK_THRESHOLDS.PRE_EVOLUTION_START) / 200;
       const maxScale = Math.min(viewportSize.width, viewportSize.height) / 200;
       const targetScale = maxScale * 0.15;
       return 0.0001 + (maxScale - 0.0001) * (1 - progress * 0.85);
     }
 
-    if (clickCount > 10000) {
+    if (clickCount > CLICK_THRESHOLDS.POST_EVOLUTION_START) {
       const maxScale = Math.min(viewportSize.width, viewportSize.height) / 200;
       const baseScale = maxScale * 0.15;
       return baseScale / Math.sqrt(cells.length);
@@ -977,260 +1007,100 @@ const Game: React.FC = () => {
     }
   }, [clickCount]);
 
-  // Update squid mood based on food presence
+  // Update squid movement logic
   useEffect(() => {
-    if (clickCount >= 10100) {
-      const hasFood = foodParticles.some(p => !p.eaten);
-      setSquidMood(prev => ({
-        isHappy: hasFood,
-        happinessLevel: hasFood ? Math.min(1, prev.happinessLevel + 0.1) : Math.max(0, prev.happinessLevel - 0.05)
-      }));
-    }
-  }, [clickCount, foodParticles]);
-
-  // Handle click with floating numbers and food drops
-  const handleClick = (e: React.MouseEvent) => {
-    const rect = gameRef.current?.getBoundingClientRect();
-    if (rect) {
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-      // Add floating number
-      const newNumber: FloatingNumber = {
-        id: nextNumberId.current++,
-        x,
-        y,
-        value: clickMultiplier,
-        opacity: 1
-      };
-
-      setFloatingNumbers(prev => [...prev, newNumber]);
-
-      // Animate the number floating up and fading out
-      setTimeout(() => {
-        setFloatingNumbers(prev =>
-          prev.map(n =>
-            n.id === newNumber.id
-              ? { ...n, y: n.y - 10, opacity: 0 }
-              : n
-          )
-        );
-      }, 50);
-
-      // Remove the number after animation
-      setTimeout(() => {
-        setFloatingNumbers(prev => prev.filter(n => n.id !== newNumber.id));
-      }, 500);
-
-      // Add food particle at click location
-      if (clickCount >= 10100) {
-        setFoodParticles(prev => [...prev, {
-          id: nextFoodId.current++,
-          x,
-          y,
-          size: Math.random() * 4 + 2,
-          eaten: false,
-          type: Math.floor(Math.random() * 4) + 1,
-          createdAt: Date.now(),
-          opacity: 1
-        }]);
-      }
-    }
-
-    setClickCount(prev => {
-      const newCount = prev + clickMultiplier;
-
-      // Trigger cell division every 10 clicks after 10000
-      if (newCount >= 10000 && newCount < 10050 && newCount % 10 === 0) {
-        setCellDivision(true);
-        setCells(prev => prev.map(cell => ({ ...cell, isDividing: true })));
-      }
-
-      return newCount;
-    });
-
-    // Only restore click animation before squid appears
-    if (clickCount < 10100) {
-      setJiggleTarget(1.2);
-      setHighlightFlash(true);
-      setTimeout(() => setJiggleTarget(-0.7), 120);
-      setTimeout(() => setJiggleTarget(0.3), 220);
-      setTimeout(() => setJiggleTarget(0), 400);
-      setTimeout(() => setHighlightFlash(false), 120);
-    }
-  };
-
-  // Update food particles fade out
-  useEffect(() => {
-    if (clickCount >= 10100) {
-      const interval = setInterval(() => {
-        const now = Date.now();
-        setFoodParticles(prev => {
-          return prev.map(particle => {
-            if (particle.eaten) return particle;
-
-            const age = now - particle.createdAt;
-            const fadeStart = 5000; // Start fading after 5 seconds
-            const fadeDuration = 2000; // Take 2 seconds to fade out
-
-            if (age > fadeStart) {
-              const fadeProgress = Math.min(1, (age - fadeStart) / fadeDuration);
-              return {
-                ...particle,
-                opacity: 1 - fadeProgress
-              };
-            }
-            return particle;
-          }).filter(particle => {
-            const age = now - particle.createdAt;
-            return !particle.eaten && age < 7000; // Remove after 7 seconds
-          });
-        });
-      }, 100);
-      return () => clearInterval(interval);
-    }
-  }, [clickCount]);
-
-  // Update squid movement with mood-based behavior
-  useEffect(() => {
-    if (clickCount >= 10100) {
+    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
       const interval = setInterval(() => {
         setSquidPosition(prev => {
           const activeParticles = foodParticles.filter(p => !p.eaten);
+          const viewportCenter = { x: 50, y: 50 };
 
-          // If no food, swim randomly with smooth direction changes
-          if (activeParticles.length === 0) {
-            // Use current velocity to maintain momentum
-            const speed = 0.3;
-            const randomAngle = Math.random() * Math.PI * 2;
-            const randomVx = Math.cos(randomAngle) * speed;
-            const randomVy = Math.sin(randomAngle) * speed;
+          if (targetFoodPosition) {
+            const dx = targetFoodPosition.x - prev.x;
+            const dy = targetFoodPosition.y - prev.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // Update velocity with smooth transition
+            activeParticles.forEach(particle => {
+              const foodDx = particle.x - prev.x;
+              const foodDy = particle.y - prev.y;
+              const foodDist = Math.sqrt(foodDx * foodDx + foodDy * foodDy);
+
+              if (foodDist < MOVEMENT.FOOD_DETECTION_RADIUS) {
+                setFoodParticles(prev =>
+                  prev.map(p => p.id === particle.id ? { ...p, eaten: true } : p)
+                );
+                setSquidExpression('eating');
+                setTimeout(() => setSquidExpression('trying'), ANIMATION.BLINK_DURATION);
+              }
+            });
+
+            if (dist < MOVEMENT.CENTER_THRESHOLD) {
+              setTargetFoodPosition(null);
+              setSquidExpression('content');
+              return prev;
+            }
+
+            const speed = MOVEMENT.SQUID_SPEED;
+            const targetVx = (dx / dist) * speed;
+            const targetVy = (dy / dist) * speed;
+
             setSquidVelocity(prevVel => ({
-              x: prevVel.x * 0.95 + randomVx * 0.05,
-              y: prevVel.y * 0.95 + randomVy * 0.05
+              x: prevVel.x * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVx * MOVEMENT.SQUID_VELOCITY_INFLUENCE,
+              y: prevVel.y * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVy * MOVEMENT.SQUID_VELOCITY_INFLUENCE
             }));
 
-            // Calculate new position
             const newX = prev.x + squidVelocity.x;
             const newY = prev.y + squidVelocity.y;
 
-            // Bounce off edges
-            if (newX <= 0 || newX >= 100) {
-              setSquidVelocity(prevVel => ({
-                x: -prevVel.x * 0.8,
-                y: prevVel.y
-              }));
-              return {
-                x: Math.max(0, Math.min(100, newX)),
-                y: newY
-              };
-            }
-            if (newY <= 0 || newY >= 100) {
-              setSquidVelocity(prevVel => ({
-                x: prevVel.x,
-                y: -prevVel.y * 0.8
-              }));
-              return {
-                x: newX,
-                y: Math.max(0, Math.min(100, newY))
-              };
-            }
-
-            return {
-              x: newX,
-              y: newY
-            };
-          }
-
-          // Find closest food particle
-          let closestFood = activeParticles[0];
-          let minDist = Infinity;
-          activeParticles.forEach(particle => {
-            const dx = particle.x - prev.x;
-            const dy = particle.y - prev.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < minDist) {
-              minDist = dist;
-              closestFood = particle;
-            }
-          });
-
-          // Move towards closest food with mood-based speed
-          const dx = closestFood.x - prev.x;
-          const dy = closestFood.y - prev.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          // If close enough to food, eat it
-          if (dist < 8) {
-            setFoodParticles(prev =>
-              prev.map(p => p.id === closestFood.id ? { ...p, eaten: true } : p)
-            );
-          }
-
-          // Calculate speed based on mood
-          const baseSpeed = 0.5;
-          const moodMultiplier = 1 + squidMood.happinessLevel * 0.5;
-          const speed = baseSpeed * moodMultiplier;
-
-          // Calculate target velocity
-          const targetVx = (dx / dist) * speed;
-          const targetVy = (dy / dist) * speed;
-
-          // Update velocity with smooth transition
-          setSquidVelocity(prevVel => ({
-            x: prevVel.x * 0.9 + targetVx * 0.1,
-            y: prevVel.y * 0.9 + targetVy * 0.1
-          }));
-
-          // Calculate new position
-          const newX = prev.x + squidVelocity.x;
-          const newY = prev.y + squidVelocity.y;
-
-          // Bounce off edges with smoother transition
-          if (newX <= 0 || newX >= 100) {
-            setSquidVelocity(prevVel => ({
-              x: -prevVel.x * 0.8,
-              y: prevVel.y
-            }));
             return {
               x: Math.max(0, Math.min(100, newX)),
-              y: newY
-            };
-          }
-          if (newY <= 0 || newY >= 100) {
-            setSquidVelocity(prevVel => ({
-              x: prevVel.x,
-              y: -prevVel.y * 0.8
-            }));
-            return {
-              x: newX,
               y: Math.max(0, Math.min(100, newY))
             };
           }
 
-          return {
-            x: newX,
-            y: newY
-          };
+          if (activeParticles.length > 0) {
+            setTargetFoodPosition({ x: activeParticles[0].x, y: activeParticles[0].y });
+            setSquidExpression('trying');
+            return prev;
+          }
+
+          const dx = viewportCenter.x - prev.x;
+          const dy = viewportCenter.y - prev.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist > MOVEMENT.CENTER_THRESHOLD) {
+            const speed = MOVEMENT.SQUID_IDLE_SPEED;
+            const targetVx = (dx / dist) * speed;
+            const targetVy = (dy / dist) * speed;
+
+            setSquidVelocity(prevVel => ({
+              x: prevVel.x * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVx * MOVEMENT.SQUID_VELOCITY_INFLUENCE,
+              y: prevVel.y * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVy * MOVEMENT.SQUID_VELOCITY_INFLUENCE
+            }));
+
+            const newX = prev.x + squidVelocity.x;
+            const newY = prev.y + squidVelocity.y;
+
+            return {
+              x: Math.max(0, Math.min(100, newX)),
+              y: Math.max(0, Math.min(100, newY))
+            };
+          }
+
+          setSquidExpression('content');
+          return prev;
         });
-      }, 16);
+      }, ANIMATION.MOVEMENT_INTERVAL);
       return () => clearInterval(interval);
     }
-  }, [clickCount, foodParticles, squidVelocity, squidMood]);
+  }, [clickCount, foodParticles, squidVelocity, targetFoodPosition]);
 
   // Initialize squid position when it first appears
   useEffect(() => {
     if (clickCount >= 10100) {
-      setSquidPosition({
-        x: Math.random() * 100,
-        y: Math.random() * 100
-      });
-      setSquidVelocity({
-        x: (Math.random() - 0.5) * 0.5,
-        y: (Math.random() - 0.5) * 0.5
-      });
+      setSquidPosition({ x: 50, y: 50 }); // Start at center
+      setSquidVelocity({ x: 0, y: 0 });
+      setSquidExpression('content');
     }
   }, [clickCount]);
 
@@ -1369,18 +1239,116 @@ const Game: React.FC = () => {
     }
   }, [clickCount]);
 
+  // Update food particles fade out
+  useEffect(() => {
+    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+      const interval = setInterval(() => {
+        const now = Date.now();
+        setFoodParticles(prev => {
+          return prev.map(particle => {
+            if (particle.eaten) return particle;
+
+            const age = now - particle.createdAt;
+
+            if (age > ANIMATION.FOOD_FADE_START) {
+              const fadeProgress = Math.min(1, (age - ANIMATION.FOOD_FADE_START) / ANIMATION.FOOD_FADE_DURATION);
+              return {
+                ...particle,
+                opacity: 1 - fadeProgress
+              };
+            }
+            return particle;
+          }).filter(particle => {
+            const age = now - particle.createdAt;
+            return !particle.eaten && age < ANIMATION.FOOD_REMOVE_AFTER;
+          });
+        });
+      }, 100);
+      return () => clearInterval(interval);
+    }
+  }, [clickCount]);
+
+  // Handle click with floating numbers and food drops
+  const handleClick = (e: React.MouseEvent) => {
+    const rect = gameRef.current?.getBoundingClientRect();
+    if (rect) {
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+      // Add floating number
+      const newNumber: FloatingNumber = {
+        id: nextNumberId.current++,
+        x,
+        y,
+        value: clickMultiplier,
+        opacity: 1
+      };
+
+      setFloatingNumbers(prev => [...prev, newNumber]);
+
+      setTimeout(() => {
+        setFloatingNumbers(prev =>
+          prev.map(n =>
+            n.id === newNumber.id
+              ? { ...n, y: n.y - 10, opacity: 0 }
+              : n
+          )
+        );
+      }, 50);
+
+      setTimeout(() => {
+        setFloatingNumbers(prev => prev.filter(n => n.id !== newNumber.id));
+      }, 500);
+
+      // Add food particle at click location
+      if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+        setFoodParticles(prev => [...prev, {
+          id: nextFoodId.current++,
+          x,
+          y,
+          size: Math.random() * (FOOD.MAX_SIZE - FOOD.MIN_SIZE) + FOOD.MIN_SIZE,
+          eaten: false,
+          type: Math.floor(Math.random() * FOOD.TYPES) + 1,
+          createdAt: Date.now(),
+          opacity: 1
+        }]);
+      }
+
+      setClickCount(prev => {
+        const newCount = prev + clickMultiplier;
+
+        if (newCount >= CLICK_THRESHOLDS.POST_EVOLUTION_START &&
+          newCount < CLICK_THRESHOLDS.CELL_DIVISION_END &&
+          newCount % CELL_DIVISION.CLICKS_PER_DIVISION === 0) {
+          setCellDivision(true);
+          setCells(prev => prev.map(cell => ({ ...cell, isDividing: true })));
+        }
+
+        return newCount;
+      });
+
+      if (clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+        setJiggleTarget(1.2);
+        setHighlightFlash(true);
+        setTimeout(() => setJiggleTarget(-0.7), 120);
+        setTimeout(() => setJiggleTarget(0.3), 220);
+        setTimeout(() => setJiggleTarget(0), 400);
+        setTimeout(() => setHighlightFlash(false), 120);
+      }
+    }
+  };
+
   // Render cell group with morphing animation
   const renderCellGroup = () => {
-    if (clickCount >= 10100) {
+    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
       return (
         <div style={{
           position: 'absolute',
           left: `${squidPosition.x}%`,
           top: `${squidPosition.y}%`,
           transform: 'translate(-50%, -50%)',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}>
-          <SquidForm isBlinking={isSquidBlinking} isHappy={squidMood.isHappy} />
+          <SquidForm isBlinking={isSquidBlinking} isHappy={squidMood.isHappy} expression={squidExpression} />
         </div>
       );
     }
@@ -1392,7 +1360,6 @@ const Game: React.FC = () => {
           left: '50%',
           top: '50%',
           transform: 'translate(-50%, -50%)',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}>
           <MorphingCell progress={morphProgress} />
         </div>
@@ -1634,7 +1601,7 @@ const Game: React.FC = () => {
           left: '50%',
           transform: `
             translate(-50%, -50%)
-            scale(${getCellScale()})
+            ${clickCount < 10100 ? `scale(${getCellScale()})` : ''}
             rotate(${groupRotation}rad)
           `,
           width: clickCount >= 10050 ? '300px' : `${Math.min(viewportSize.width, viewportSize.height) * 0.2}px`,
