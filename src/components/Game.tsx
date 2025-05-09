@@ -628,6 +628,7 @@ const Game: React.FC = () => {
   const [internalRotation, setInternalRotation] = useState(0);
   const [groupScale, setGroupScale] = useState(1);
   const gameRef = useRef<HTMLDivElement>(null);
+  const lastClickTime = useRef<number>(0);
 
   // --- Smooth spring for jiggle ---
   const [jiggleTarget, setJiggleTarget] = useState(0);
@@ -1064,18 +1065,26 @@ const Game: React.FC = () => {
             return prev;
           }
 
+          // Make the squid swim back towards the center area when no food is present
           const dx = viewportCenter.x - prev.x;
           const dy = viewportCenter.y - prev.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist > MOVEMENT.CENTER_THRESHOLD) {
-            const speed = MOVEMENT.SQUID_IDLE_SPEED;
+          // Only start swimming back if we're far from center
+          if (dist > MOVEMENT.CENTER_THRESHOLD * 2) {
+            const speed = MOVEMENT.SQUID_IDLE_SPEED * 0.5; // Slower speed for idle swimming
             const targetVx = (dx / dist) * speed;
             const targetVy = (dy / dist) * speed;
 
+            // Add some randomness to the movement
+            const randomAngle = Math.random() * Math.PI * 2;
+            const randomForce = Math.random() * 0.2;
+            const randomVx = Math.cos(randomAngle) * randomForce;
+            const randomVy = Math.sin(randomAngle) * randomForce;
+
             setSquidVelocity(prevVel => ({
-              x: prevVel.x * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVx * MOVEMENT.SQUID_VELOCITY_INFLUENCE,
-              y: prevVel.y * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVy * MOVEMENT.SQUID_VELOCITY_INFLUENCE
+              x: prevVel.x * MOVEMENT.SQUID_VELOCITY_DAMPING + (targetVx + randomVx) * MOVEMENT.SQUID_VELOCITY_INFLUENCE,
+              y: prevVel.y * MOVEMENT.SQUID_VELOCITY_DAMPING + (targetVy + randomVy) * MOVEMENT.SQUID_VELOCITY_INFLUENCE
             }));
 
             const newX = prev.x + squidVelocity.x;
@@ -1087,8 +1096,19 @@ const Game: React.FC = () => {
             };
           }
 
-          setSquidExpression('content');
-          return prev;
+          // When close to center, just drift slowly
+          setSquidVelocity(prevVel => ({
+            x: prevVel.x * 0.95,
+            y: prevVel.y * 0.95
+          }));
+
+          const newX = prev.x + squidVelocity.x;
+          const newY = prev.y + squidVelocity.y;
+
+          return {
+            x: Math.max(0, Math.min(100, newX)),
+            y: Math.max(0, Math.min(100, newY))
+          };
         });
       }, ANIMATION.MOVEMENT_INTERVAL);
       return () => clearInterval(interval);
@@ -1270,6 +1290,14 @@ const Game: React.FC = () => {
 
   // Handle click with floating numbers and food drops
   const handleClick = (e: React.MouseEvent) => {
+    // Add click cooldown check
+    const now = Date.now();
+    const CLICK_COOLDOWN = 100; // 100ms between clicks (10 clicks per second max)
+    if (now - lastClickTime.current < CLICK_COOLDOWN) {
+      return; // Ignore click if too soon
+    }
+    lastClickTime.current = now;
+
     const rect = gameRef.current?.getBoundingClientRect();
     if (rect) {
       const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -1327,6 +1355,7 @@ const Game: React.FC = () => {
         return newCount;
       });
 
+      // Only apply cell click animation and camera centering before squid transformation
       if (clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
         setJiggleTarget(1.2);
         setHighlightFlash(true);
@@ -1334,6 +1363,9 @@ const Game: React.FC = () => {
         setTimeout(() => setJiggleTarget(0.3), 220);
         setTimeout(() => setJiggleTarget(0), 400);
         setTimeout(() => setHighlightFlash(false), 120);
+
+        // Update camera position to center on click
+        setTargetCameraPosition({ x, y });
       }
     }
   };
@@ -1601,8 +1633,8 @@ const Game: React.FC = () => {
           left: '50%',
           transform: `
             translate(-50%, -50%)
-            ${clickCount < 10100 ? `scale(${getCellScale()})` : ''}
-            rotate(${groupRotation}rad)
+            ${clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? `scale(${getCellScale()})` : ''}
+            ${clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? `rotate(${groupRotation}rad)` : ''}
           `,
           width: clickCount >= 10050 ? '300px' : `${Math.min(viewportSize.width, viewportSize.height) * 0.2}px`,
           height: clickCount >= 10050 ? '300px' : `${Math.min(viewportSize.width, viewportSize.height) * 0.2}px`,
