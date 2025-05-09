@@ -1230,8 +1230,11 @@ const Game: React.FC = () => {
       });
     };
 
-    animateCamera();
-  }, [targetCameraPosition]);
+    // Only animate camera if we haven't reached squid transformation
+    if (clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+      animateCamera();
+    }
+  }, [targetCameraPosition, clickCount]);
 
   // Smooth transition at 10001
   useEffect(() => {
@@ -1259,34 +1262,23 @@ const Game: React.FC = () => {
     }
   }, [clickCount]);
 
-  // Update food particles fade out
+  // Update food particles
   useEffect(() => {
-    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
-      const interval = setInterval(() => {
-        const now = Date.now();
-        setFoodParticles(prev => {
-          return prev.map(particle => {
-            if (particle.eaten) return particle;
+    const interval = setInterval(() => {
+      setFoodParticles(prev => {
+        // Remove eaten particles
+        const remainingParticles = prev.filter(p => !p.eaten);
 
-            const age = now - particle.createdAt;
+        // If we're at the limit, remove the oldest particle
+        if (remainingParticles.length >= FOOD.MAX_PARTICLES) {
+          return remainingParticles.slice(1);
+        }
 
-            if (age > ANIMATION.FOOD_FADE_START) {
-              const fadeProgress = Math.min(1, (age - ANIMATION.FOOD_FADE_START) / ANIMATION.FOOD_FADE_DURATION);
-              return {
-                ...particle,
-                opacity: 1 - fadeProgress
-              };
-            }
-            return particle;
-          }).filter(particle => {
-            const age = now - particle.createdAt;
-            return !particle.eaten && age < ANIMATION.FOOD_REMOVE_AFTER;
-          });
-        });
-      }, 100);
-      return () => clearInterval(interval);
-    }
-  }, [clickCount]);
+        return remainingParticles;
+      });
+    }, ANIMATION.MOVEMENT_INTERVAL);
+    return () => clearInterval(interval);
+  }, []);
 
   // Handle click with floating numbers and food drops
   const handleClick = (e: React.MouseEvent) => {
@@ -1328,20 +1320,31 @@ const Game: React.FC = () => {
         setFloatingNumbers(prev => prev.filter(n => n.id !== newNumber.id));
       }, 500);
 
-      // Add food particle at click location
+      // Add food particle if we're in squid phase and haven't reached the limit
       if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
-        setFoodParticles(prev => [...prev, {
-          id: nextFoodId.current++,
-          x,
-          y,
-          size: Math.random() * (FOOD.MAX_SIZE - FOOD.MIN_SIZE) + FOOD.MIN_SIZE,
-          eaten: false,
-          type: Math.floor(Math.random() * FOOD.TYPES) + 1,
-          createdAt: Date.now(),
-          opacity: 1
-        }]);
+        setFoodParticles(prev => {
+          const currentParticles = prev.filter(p => !p.eaten);
+          if (currentParticles.length >= FOOD.MAX_PARTICLES) {
+            return prev;
+          }
+
+          return [
+            ...prev,
+            {
+              id: Date.now(),
+              x,
+              y,
+              size: Math.random() * (FOOD.MAX_SIZE - FOOD.MIN_SIZE) + FOOD.MIN_SIZE,
+              type: Math.floor(Math.random() * FOOD.TYPES) + 1,
+              eaten: false,
+              opacity: 1,
+              createdAt: Date.now()
+            }
+          ];
+        });
       }
 
+      // Increment click count and handle cell division
       setClickCount(prev => {
         const newCount = prev + clickMultiplier;
 
@@ -1638,7 +1641,7 @@ const Game: React.FC = () => {
           `,
           width: clickCount >= 10050 ? '300px' : `${Math.min(viewportSize.width, viewportSize.height) * 0.2}px`,
           height: clickCount >= 10050 ? '300px' : `${Math.min(viewportSize.width, viewportSize.height) * 0.2}px`,
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
           transformOrigin: 'center center',
           display: 'flex',
           justifyContent: 'center',
