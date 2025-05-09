@@ -1,5 +1,6 @@
 // Game progression thresholds
 export const CLICK_THRESHOLDS = {
+    CLICK_COOLDOWN: 50,
     INITIAL: 1,
     PRE_EVOLUTION_START: 9800,
     PRE_EVOLUTION_END: 10000,

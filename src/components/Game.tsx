@@ -9,6 +9,11 @@ import {
   BACKGROUND,
   SPRING,
 } from '../constants/gameConstants';
+import { FEATURE_FLAGS } from '../constants/featureFlags';
+import Store from './Store/Store';
+import { StoreItem } from '../constants/storeItems';
+import { StoreHandler } from '../handlers/StoreHandler';
+import { handlePurchase } from './Store/storeLogic';
 
 interface Position {
   x: number;
@@ -678,26 +683,66 @@ const Game: React.FC = () => {
   const [targetFoodPosition, setTargetFoodPosition] = useState<{ x: number; y: number } | null>(null);
   const [squidExpression, setSquidExpression] = useState<'content' | 'trying' | 'eating'>('content');
 
+  const [purchasedItems, setPurchasedItems] = useState<{ [key: string]: number }>({});
+  const [clickBonus, setClickBonus] = useState(0);
+  const [temporaryMultiplier, setTemporaryMultiplier] = useState(1);
+  const [temporaryMultiplierTimeout, setTemporaryMultiplierTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  // Create store handler
+  const storeHandlerRef = useRef<StoreHandler | null>(null);
+
+  // Initialize store handler
   useEffect(() => {
-    let running = true;
-    function animate() {
-      // Spring physics
-      const displacement = jiggleTarget - jiggleRef.current;
-      const springForce = displacement * SPRING_CONFIG.stiffness;
-      jiggleVelocity.current = (jiggleVelocity.current + springForce) * SPRING_CONFIG.damping;
-      jiggleRef.current += jiggleVelocity.current;
-      setJiggle(jiggleRef.current);
-      if (Math.abs(jiggleVelocity.current) > 0.001 || Math.abs(displacement) > 0.001) {
-        requestAnimationFrame(animate);
-      } else {
-        jiggleRef.current = jiggleTarget;
-        setJiggle(jiggleTarget);
+    storeHandlerRef.current = new StoreHandler(
+      {
+        clickCount,
+        clickBonus,
+        clickMultiplier,
+        temporaryMultiplier,
+        purchasedItems
+      },
+      {
+        setClickCount,
+        setClickBonus,
+        setClickMultiplier,
+        setTemporaryMultiplier,
+        setPurchasedItems,
+        setTemporaryMultiplierTimeout,
+        onStateChange: (newState) => {
+          console.log('Store state changed:', newState);
+        },
+        onError: (error) => {
+          console.error('Store handler error:', error);
+        }
       }
+    );
+
+    return () => {
+      if (storeHandlerRef.current) {
+        storeHandlerRef.current.cleanup();
+      }
+    };
+  }, []); // Empty dependency array since we only want to create the handler once
+
+  // Sync handler state with component state
+  useEffect(() => {
+    if (storeHandlerRef.current) {
+      storeHandlerRef.current.updateHandlerState({
+        clickCount,
+        clickBonus,
+        clickMultiplier,
+        temporaryMultiplier,
+        purchasedItems
+      });
     }
-    animate();
-    return () => { running = false; };
-    // eslint-disable-next-line
-  }, [jiggleTarget]);
+  }, [clickCount, clickBonus, clickMultiplier, temporaryMultiplier, purchasedItems]);
+
+  // Handle store purchases
+  const handleStorePurchase = (item: StoreItem) => {
+    if (storeHandlerRef.current) {
+      storeHandlerRef.current.handleEvent(item);
+    }
+  };
 
   // Update time for animations
   useEffect(() => {
@@ -1314,12 +1359,17 @@ const Game: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle click with floating numbers and food drops
+  // Calculate total clicks from all sources
+  const calculateTotalClicks = () => {
+    const baseClicks = 1 + clickBonus; // Base click (1) + permanent bonus
+    return baseClicks * clickMultiplier * temporaryMultiplier; // Apply multipliers
+  };
+
+  // Modify handleClick to use the total clicks
   const handleClick = (e: React.MouseEvent) => {
     // Add click cooldown check
     const now = Date.now();
-    const CLICK_COOLDOWN = 100; // 100ms between clicks (10 clicks per second max)
-    if (now - lastClickTime.current < CLICK_COOLDOWN) {
+    if (now - lastClickTime.current < CLICK_THRESHOLDS.CLICK_COOLDOWN) {
       return; // Ignore click if too soon
     }
     lastClickTime.current = now;
@@ -1329,12 +1379,12 @@ const Game: React.FC = () => {
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-      // Add floating number
+      // Add floating number with total clicks
       const newNumber: FloatingNumber = {
         id: nextNumberId.current++,
         x,
         y,
-        value: clickMultiplier,
+        value: calculateTotalClicks(),
         opacity: 1
       };
 
@@ -1378,9 +1428,9 @@ const Game: React.FC = () => {
         });
       }
 
-      // Increment click count and handle cell division
+      // Increment click count with total clicks
       setClickCount(prev => {
-        const newCount = prev + clickMultiplier;
+        const newCount = prev + calculateTotalClicks();
 
         if (newCount >= CLICK_THRESHOLDS.POST_EVOLUTION_START &&
           newCount < CLICK_THRESHOLDS.CELL_DIVISION_END &&
@@ -1567,51 +1617,42 @@ const Game: React.FC = () => {
           zIndex: 1000,
         }}
       >
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setClickMultiplier(prev => {
-              switch (prev) {
-                case 1: return 99;
-                case 99: return 100;
-                case 100: return 1000;
-                case 1000: return 5000;
-                default: return 1;
-              }
-            });
-          }}
-          style={{
-            padding: '10px 20px',
-            fontSize: '16px',
-            color: clickMultiplier > 1 ? '#ffffff' : '#999999',
-            background: clickMultiplier > 1 ? '#4a90e2' : 'transparent',
-            border: '2px solid #4a90e2',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease-out',
-          }}
-        >
-          Click Multiplier: x{clickMultiplier.toLocaleString()}
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setGameMode(prev => prev === 'clicker' ? 'movement' : 'clicker');
-          }}
-          style={{
-            padding: '10px 20px',
-            fontSize: '16px',
-            color: '#ffffff',
-            background: 'transparent',
-            border: '2px solid #4a90e2',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease-out',
-          }}
-        >
-          Switch to {gameMode === 'clicker' ? 'Movement' : 'Clicker'} Mode
-        </button>
+        {FEATURE_FLAGS.DEVELOPMENT && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setClickMultiplier(prev => {
+                switch (prev) {
+                  case 1: return 99;
+                  case 99: return 100;
+                  case 100: return 1000;
+                  case 1000: return 5000;
+                  default: return 1;
+                }
+              });
+            }}
+            style={{
+              padding: '10px 20px',
+              fontSize: '16px',
+              color: clickMultiplier > 1 ? '#ffffff' : '#999999',
+              background: clickMultiplier > 1 ? '#4a90e2' : 'transparent',
+              border: '2px solid #4a90e2',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease-out',
+            }}
+          >
+            Click Multiplier: x{clickMultiplier.toLocaleString()}
+          </button>
+        )}
       </div>
+
+      {/* Store - will only render when there are available items */}
+      <Store
+        clickCount={clickCount}
+        onPurchase={handleStorePurchase}
+        purchasedItems={purchasedItems}
+      />
 
       {/* Petri dish background */}
       <div
