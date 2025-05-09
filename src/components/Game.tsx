@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   CLICK_THRESHOLDS,
   CELL_DIVISION,
@@ -15,6 +15,7 @@ import { StoreItem } from '../constants/storeItems';
 import { StoreHandler } from '../handlers/StoreHandler';
 import { ParticleHandler, Particle } from '../handlers/ParticleHandler';
 import { handlePurchase } from './Store/storeLogic';
+import { SquidExpression } from '../types/game';
 
 interface Position {
   x: number;
@@ -553,8 +554,9 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
       const duration = ANIMATION.EATING_DURATION;
       const startX = particle.x;
       const startY = particle.y;
-      const centerX = 50; // Center of viewport
-      const centerY = 50;
+      // Use squid's position for the target
+      const targetX = 50; // Squid's X position (percentage)
+      const targetY = 50; // Squid's Y position (percentage)
 
       const animate = () => {
         const elapsed = Date.now() - startTime;
@@ -562,9 +564,9 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
 
         // Calculate spiral path
         const angle = progress * Math.PI * 4; // Two full rotations
-        const radius = (1 - progress) * 30; // Shrinking radius
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
+        const radius = (1 - progress) * 15; // Reduced radius to 15% of screen
+        const x = targetX + Math.cos(angle) * radius;
+        const y = targetY + Math.sin(angle) * radius;
 
         setSpiralProgress(progress);
         setSpiralAngle(angle);
@@ -593,11 +595,11 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
   const getParticleStyle = (): React.CSSProperties => {
     if (particle.isBeingEaten) {
       const angle = spiralAngle;
-      const radius = (1 - spiralProgress) * 30;
+      const radius = (1 - spiralProgress) * 15; // Match the radius in the animation
       const x = 50 + Math.cos(angle) * radius;
       const y = 50 + Math.sin(angle) * radius;
 
-      console.log(`Particle ${particle.id} position: (${x}, ${y}), progress: ${spiralProgress}`);
+      console.log(`Particle ${particle.id} position: (${x}%, ${y}%), progress: ${spiralProgress}`);
 
       return {
         position: 'absolute' as const,
@@ -755,7 +757,6 @@ const Game: React.FC = () => {
   const lastClickTime = useRef<number>(0);
 
   // Add eating behavior states
-  const [isEating, setIsEating] = useState(false);
   const [foodBeingEaten, setFoodBeingEaten] = useState<Set<number>>(new Set());
 
   // --- Smooth spring for jiggle ---
@@ -802,7 +803,7 @@ const Game: React.FC = () => {
 
   // Add new state for target food position and squid expression
   const [targetFoodPosition, setTargetFoodPosition] = useState<{ x: number; y: number } | null>(null);
-  const [squidExpression, setSquidExpression] = useState<'content' | 'sucking'>('content');
+  const [squidExpression, setSquidExpression] = useState<SquidExpression>('content');
 
   const [purchasedItems, setPurchasedItems] = useState<{ [key: string]: number }>({});
   const [clickBonus, setClickBonus] = useState(0);
@@ -1294,79 +1295,61 @@ const Game: React.FC = () => {
     return baseClicks * clickMultiplier * temporaryMultiplier; // Apply multipliers
   };
 
-  // Add effect to change expression when food particles are present
-  useEffect(() => {
-    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
-      const hasFood = foodParticles.some(particle => !particle.eaten);
-      if (hasFood && !isEating) {
-        setSquidExpression('sucking');
-      } else if (!hasFood && !isEating) {
-        setSquidExpression('content');
-      }
-    }
-  }, [clickCount, foodParticles, isEating]);
+  // Add new function to handle sucking behavior
+  const handleSuckingBehavior = useCallback(() => {
+    if (clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION) return;
 
-  // Modify the eating behavior to use the new logging
-  useEffect(() => {
-    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
-      const checkForFood = () => {
-        const availableFood = foodParticles.filter(particle =>
-          !particle.eaten && !foodBeingEaten.has(particle.id)
+    // Only check for new particles to suck if squid is in content mode
+    if (squidExpression !== 'content') {
+      console.log('Squid is already sucking, ignoring new particles');
+      return;
+    }
+
+    const availableFood = foodParticles.filter(particle =>
+      !particle.eaten && !foodBeingEaten.has(particle.id)
+    );
+
+    if (availableFood.length >= FOOD.MIN_PARTICLES_FOR_SUCK) {
+      console.log(`Found ${availableFood.length} available food particles, starting sucking animation`);
+
+      // Start sucking animation
+      setSquidExpression('sucking');
+
+      // Mark all available food as being eaten
+      const newFoodBeingEaten = new Set(foodBeingEaten);
+      availableFood.forEach(food => {
+        newFoodBeingEaten.add(food.id);
+      });
+      setFoodBeingEaten(newFoodBeingEaten);
+
+      // Update food particles to show sucking animation
+      setFoodParticles(prev =>
+        prev.map(particle => {
+          if (newFoodBeingEaten.has(particle.id)) {
+            console.log(`Starting spiral animation for particle ${particle.id} at (${particle.x}, ${particle.y})`);
+            return { ...particle, isBeingEaten: true };
+          }
+          return particle;
+        })
+      );
+
+      // After sucking animation completes, mark food as eaten
+      setTimeout(() => {
+        console.log('Sucking animation complete, marking food as eaten');
+        setFoodParticles(prev =>
+          prev.map(particle => {
+            if (newFoodBeingEaten.has(particle.id)) {
+              console.log(`Marking particle ${particle.id} as eaten`);
+              return { ...particle, eaten: true };
+            }
+            return particle;
+          })
         );
-
-        if (availableFood.length > 0) {
-          // Start sucking animation
-          setIsEating(true);
-          setSquidExpression('sucking');
-
-          // Mark all available food as being eaten
-          const newFoodBeingEaten = new Set(foodBeingEaten);
-          availableFood.forEach(food => {
-            newFoodBeingEaten.add(food.id);
-          });
-          setFoodBeingEaten(newFoodBeingEaten);
-
-          // Update food particles to show eating animation
-          setFoodParticles(prev =>
-            prev.map(particle => {
-              if (newFoodBeingEaten.has(particle.id)) {
-                updateObjectLog(
-                  `particle-${particle.id}`,
-                  `Starting spiral animation for particle at (${particle.x.toFixed(2)}, ${particle.y.toFixed(2)})`,
-                  'foodParticles'
-                );
-                return { ...particle, isBeingEaten: true };
-              }
-              return particle;
-            })
-          );
-
-          // After eating animation completes, mark food as eaten
-          setTimeout(() => {
-            setFoodParticles(prev =>
-              prev.map(particle => {
-                if (newFoodBeingEaten.has(particle.id)) {
-                  updateObjectLog(
-                    `particle-${particle.id}`,
-                    'Particle eaten, removing from scene',
-                    'foodParticles'
-                  );
-                  return { ...particle, eaten: true };
-                }
-                return particle;
-              })
-            );
-            setFoodBeingEaten(new Set());
-            setIsEating(false);
-            setSquidExpression('content');
-          }, ANIMATION.EATING_DURATION);
-        }
-      };
-
-      const interval = setInterval(checkForFood, ANIMATION.EATING_CHECK_INTERVAL);
-      return () => clearInterval(interval);
+        setFoodBeingEaten(new Set());
+        setSquidExpression('content');
+      }, ANIMATION.EATING_DURATION);
     }
-  }, [clickCount, foodParticles, isEating, foodBeingEaten]);
+  }, [clickCount, foodParticles, foodBeingEaten, squidExpression]);
 
   // Calculate morph progress
   useEffect(() => {
@@ -1396,7 +1379,7 @@ const Game: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Update handleClick to check if click is within game area
+  // Update handleClick to include sucking behavior check
   const handleClick = (e: React.MouseEvent) => {
     // Check if click is within developer controls or store
     const target = e.target as HTMLElement;
@@ -1452,27 +1435,34 @@ const Game: React.FC = () => {
 
       // Add food particle if we're in squid phase and haven't reached the limit
       if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+        console.log('Creating new food particle at click position:', x, y);
         setFoodParticles(prev => {
           const currentParticles = prev.filter(p => !p.eaten);
+          console.log('Current uneaten particles:', currentParticles.length);
+          console.log('Max particles allowed:', FOOD.MAX_PARTICLES);
+
           if (currentParticles.length >= FOOD.MAX_PARTICLES) {
+            console.log('Max particles reached, not creating new particle');
             return prev;
           }
 
-          return [
-            ...prev,
-            {
-              id: Date.now(),
-              x,
-              y,
-              size: Math.random() * (FOOD.MAX_SIZE - FOOD.MIN_SIZE) + FOOD.MIN_SIZE,
-              type: Math.floor(Math.random() * FOOD.TYPES) + 1,
-              eaten: false,
-              isBeingEaten: false,
-              opacity: 1,
-              createdAt: Date.now()
-            }
-          ];
+          const newParticle = {
+            id: nextFoodId.current++,
+            x,
+            y,
+            size: Math.random() * (FOOD.MAX_SIZE - FOOD.MIN_SIZE) + FOOD.MIN_SIZE,
+            type: Math.floor(Math.random() * FOOD.TYPES) + 1,
+            eaten: false,
+            isBeingEaten: false,
+            opacity: 1,
+            createdAt: Date.now()
+          };
+          console.log('Created new food particle:', newParticle);
+          return [...prev, newParticle];
         });
+
+        // Check for sucking behavior after adding new particle
+        handleSuckingBehavior();
       }
 
       // Increment click count with total clicks
@@ -1507,23 +1497,7 @@ const Game: React.FC = () => {
   // Render cell group with morphing animation
   const renderCellGroup = () => {
     if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
-      return (
-        <div style={{
-          position: 'absolute',
-          left: `${squidPosition.x}%`,
-          top: `${squidPosition.y}%`,
-          transform: 'translate(-50%, -50%)',
-          width: '300px', // Fixed size for squid
-          height: '300px',
-        }}>
-          <SquidForm
-            isBlinking={isSquidBlinking}
-            isHappy={squidMood.isHappy}
-            expression={squidExpression}
-            scale={squidFormOpacity * 0.7} // Changed from 2 to 0.7
-          />
-        </div>
-      );
+      return null; // Remove the SquidForm from here since we render it at the bottom
     }
 
     if (clickCount >= 10050) {
@@ -1904,7 +1878,7 @@ const Game: React.FC = () => {
         Clicks: {clickCount}
       </div>
 
-      {/* Update SquidForm to include eating expression */}
+      {/* SquidForm - single source of truth */}
       {clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION && (
         <div style={{
           position: 'absolute',
@@ -1918,7 +1892,7 @@ const Game: React.FC = () => {
             isBlinking={isSquidBlinking}
             isHappy={squidMood.isHappy}
             expression={squidExpression}
-            scale={squidFormOpacity * 0.7} // Changed from 2 to 0.7
+            scale={squidFormOpacity * 0.7}
           />
         </div>
       )}

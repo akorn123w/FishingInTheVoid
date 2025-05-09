@@ -2,7 +2,7 @@
   "name": "fishing-in-the-void",
   "private": true,
   "version": "0.0.0",
-  "main": "electron/main.ts",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

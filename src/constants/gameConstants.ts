@@ -58,10 +58,11 @@ export const PARTICLES = {
 
 // Food settings
 export const FOOD = {
-    MIN_SIZE: 4,
-    MAX_SIZE: 8,
+    MAX_PARTICLES: 10,
+    MIN_SIZE: 10,
+    MAX_SIZE: 20,
     TYPES: 4,
-    MAX_PARTICLES: 2000,
+    MIN_PARTICLES_FOR_SUCK: 3,
 } as const;
 
 // Background cell settings

@@ -38,4 +38,4 @@ export interface Cell {
     style?: React.CSSProperties;
 }
 
-export type SquidExpression = 'content' | 'trying' | 'eating';
+export type SquidExpression = 'content' | 'sucking';
