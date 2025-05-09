@@ -310,7 +310,8 @@ const SquidForm: React.FC<{
   isBlinking?: boolean;
   isHappy?: boolean;
   expression?: 'content' | 'trying' | 'eating';
-}> = ({ isBlinking = false, isHappy = false, expression = 'content' }) => {
+  scale?: number;
+}> = ({ isBlinking = false, isHappy = false, expression = 'content', scale = 1 }) => {
   const [tentaclePhase, setTentaclePhase] = useState(0);
 
   useEffect(() => {
@@ -340,8 +341,9 @@ const SquidForm: React.FC<{
       style={{
         filter: `drop-shadow(0 0 16px #4a90e2aa)`,
         transformOrigin: 'center center',
-        transform: 'scale(3)',
+        transform: `scale(${scale})`,
         overflow: 'visible',
+        transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)', // Bouncy animation
       }}
     >
       {/* Main body */}
@@ -519,7 +521,7 @@ const MorphingCell: React.FC<{ progress: number }> = ({ progress }) => {
       style={{
         filter: `drop-shadow(0 0 16px #4a90e2aa)`,
         transformOrigin: 'center center',
-        transform: 'scale(3)',
+        transform: 'scale(1)',
         overflow: 'visible',
       }}
     >
@@ -1021,11 +1023,13 @@ const Game: React.FC = () => {
             const dy = targetFoodPosition.y - prev.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
+            // Check for food collision with adjusted radius
             activeParticles.forEach(particle => {
               const foodDx = particle.x - prev.x;
               const foodDy = particle.y - prev.y;
               const foodDist = Math.sqrt(foodDx * foodDx + foodDy * foodDy);
 
+              // Use a larger detection radius for visual accuracy
               if (foodDist < MOVEMENT.FOOD_DETECTION_RADIUS) {
                 setFoodParticles(prev =>
                   prev.map(p => p.id === particle.id ? { ...p, eaten: true } : p)
@@ -1035,23 +1039,25 @@ const Game: React.FC = () => {
               }
             });
 
+            // Only consider food reached when we're very close
             if (dist < MOVEMENT.CENTER_THRESHOLD) {
               setTargetFoodPosition(null);
               setSquidExpression('content');
               return prev;
             }
 
-            const speed = MOVEMENT.SQUID_SPEED;
+            const speed = MOVEMENT.SQUID_SPEED * 2;
             const targetVx = (dx / dist) * speed;
             const targetVy = (dy / dist) * speed;
+
+            // Remove the overshoot factor for more precise movement
+            const newX = prev.x + squidVelocity.x;
+            const newY = prev.y + squidVelocity.y;
 
             setSquidVelocity(prevVel => ({
               x: prevVel.x * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVx * MOVEMENT.SQUID_VELOCITY_INFLUENCE,
               y: prevVel.y * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVy * MOVEMENT.SQUID_VELOCITY_INFLUENCE
             }));
-
-            const newX = prev.x + squidVelocity.x;
-            const newY = prev.y + squidVelocity.y;
 
             return {
               x: Math.max(0, Math.min(100, newX)),
@@ -1246,11 +1252,39 @@ const Game: React.FC = () => {
 
   // Transition to squid form
   useEffect(() => {
-    if (clickCount >= 10100) {
-      setSquidFormOpacity(1);
+    if (clickCount >= 10100 && !showSquidForm) { // Only play animation when squid first appears
+      // Start with a squished scale and animate to full size
+      setSquidFormOpacity(0);
       setShowSquidForm(true);
+
+      // Animate the opacity and scale
+      const startTime = Date.now();
+      const duration = 1000; // 1 second animation
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Use a bouncy easing function
+        const bounce = (t: number) => {
+          const c4 = (2 * Math.PI) / 3;
+          return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+        };
+
+        const easedProgress = bounce(progress);
+        setSquidFormOpacity(easedProgress);
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    } else if (clickCount >= 10100 && showSquidForm) {
+      // If squid is already shown, just set opacity to 1
+      setSquidFormOpacity(1);
     }
-  }, [clickCount]);
+  }, [clickCount, showSquidForm]);
 
   // Calculate morph progress
   useEffect(() => {
@@ -1382,8 +1416,15 @@ const Game: React.FC = () => {
           left: `${squidPosition.x}%`,
           top: `${squidPosition.y}%`,
           transform: 'translate(-50%, -50%)',
+          width: '300px', // Fixed size for squid
+          height: '300px',
         }}>
-          <SquidForm isBlinking={isSquidBlinking} isHappy={squidMood.isHappy} expression={squidExpression} />
+          <SquidForm
+            isBlinking={isSquidBlinking}
+            isHappy={squidMood.isHappy}
+            expression={squidExpression}
+            scale={squidFormOpacity * 2}
+          />
         </div>
       );
     }
@@ -1395,6 +1436,8 @@ const Game: React.FC = () => {
           left: '50%',
           top: '50%',
           transform: 'translate(-50%, -50%)',
+          width: '300px', // Fixed size for morphing
+          height: '300px',
         }}>
           <MorphingCell progress={morphProgress} />
         </div>
@@ -1402,7 +1445,7 @@ const Game: React.FC = () => {
     }
 
     // For cells before 10050, use a single SVG with groups
-    const svgSize = Math.min(viewportSize.width, viewportSize.height) * 0.2; // 20% of viewport
+    const svgSize = Math.min(viewportSize.width, viewportSize.height) * 0.2;
     return (
       <svg
         width={svgSize}
@@ -1634,14 +1677,18 @@ const Game: React.FC = () => {
           position: 'absolute',
           top: '50%',
           left: '50%',
-          transform: `
-            translate(-50%, -50%)
-            ${clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? `scale(${getCellScale()})` : ''}
-            ${clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? `rotate(${groupRotation}rad)` : ''}
-          `,
+          transform: clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION
+            ? `
+              translate(-50%, -50%)
+              scale(${getCellScale()})
+              rotate(${groupRotation}rad)
+            `
+            : 'translate(-50%, -50%)', // After squid transformation, only center the container
           width: clickCount >= 10050 ? '300px' : `${Math.min(viewportSize.width, viewportSize.height) * 0.2}px`,
           height: clickCount >= 10050 ? '300px' : `${Math.min(viewportSize.width, viewportSize.height) * 0.2}px`,
-          transition: clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+          transition: clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION
+            ? 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            : 'none',
           transformOrigin: 'center center',
           display: 'flex',
           justifyContent: 'center',
