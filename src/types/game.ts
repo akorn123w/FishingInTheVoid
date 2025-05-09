@@ -8,10 +8,16 @@ export interface Particle {
     x: number;
     y: number;
     size: number;
-    eaten: boolean;
-    type: number;
-    createdAt: number;
-    opacity: number;
+    speed: number;
+    angle: number;
+    vx: number;
+    vy: number;
+    pushTime: number;
+    eaten?: boolean;
+    isBeingEaten?: boolean;
+    type?: number;
+    createdAt?: number;
+    opacity?: number;
 }
 
 export interface FloatingNumber {

@@ -1,9 +1,42 @@
 import React from 'react';
 import type { SquidFormProps } from './types';
 import { useTentacleAnimation } from './animations';
+import { ANIMATION } from '../../constants/gameConstants';
 
-const SquidForm: React.FC<SquidFormProps> = ({ isBlinking = false, isHappy = false, expression = 'content' }) => {
+const SquidForm: React.FC<SquidFormProps> = ({ isBlinking = false, isHappy = false, expression = 'content', scale = 1 }) => {
     const tentaclePhase = useTentacleAnimation();
+    const [shakeOffset, setShakeOffset] = React.useState(0);
+    const [cheekColor, setCheekColor] = React.useState('#4a90e2');
+
+    // Handle eating animation effects
+    React.useEffect(() => {
+        if (expression === 'eating') {
+            // Start shaking animation
+            const shakeInterval = setInterval(() => {
+                setShakeOffset(Math.sin(Date.now() * 0.01) * ANIMATION.EATING_SHAKE_INTENSITY);
+            }, 16);
+
+            // Animate cheeks to red
+            const startTime = Date.now();
+            const animateCheeks = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / ANIMATION.EATING_DURATION, 1);
+                const redIntensity = Math.min(progress * 255, 255);
+                setCheekColor(`rgb(${redIntensity}, ${74 - redIntensity * 0.2}, ${226 - redIntensity * 0.5})`);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateCheeks);
+                }
+            };
+            requestAnimationFrame(animateCheeks);
+
+            return () => {
+                clearInterval(shakeInterval);
+                setShakeOffset(0);
+                setCheekColor('#4a90e2');
+            };
+        }
+    }, [expression]);
 
     const getMouthPath = () => {
         switch (expression) {
@@ -25,8 +58,9 @@ const SquidForm: React.FC<SquidFormProps> = ({ isBlinking = false, isHappy = fal
             style={{
                 filter: `drop-shadow(0 0 16px #4a90e2aa)`,
                 transformOrigin: 'center center',
-                transform: 'scale(3) translate(-50%, -50%)',
+                transform: `scale(${scale}) translate(${shakeOffset}px, ${shakeOffset}px)`,
                 overflow: 'visible',
+                transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
         >
             {/* Main body */}
@@ -38,7 +72,7 @@ const SquidForm: React.FC<SquidFormProps> = ({ isBlinking = false, isHappy = fal
                     rx="40"
                     ry="35"
                     fill="url(#cellGradient)"
-                    stroke="#4a90e2"
+                    stroke={cheekColor}
                     strokeWidth="2"
                 />
 
@@ -47,22 +81,22 @@ const SquidForm: React.FC<SquidFormProps> = ({ isBlinking = false, isHappy = fal
                     <ellipse
                         cx="35"
                         cy="45"
-                        rx="8"
-                        ry={isBlinking ? "2" : "12"}
+                        rx={expression === 'eating' ? "6" : "8"}
+                        ry={isBlinking ? "2" : expression === 'eating' ? "8" : "12"}
                         fill="#2a4a8a"
-                        stroke="#4a90e2"
+                        stroke={cheekColor}
                         strokeWidth="1"
-                        style={{ transition: 'ry 0.1s ease-out' }}
+                        style={{ transition: 'all 0.3s ease-out' }}
                     />
                     <ellipse
                         cx="65"
                         cy="45"
-                        rx="8"
-                        ry={isBlinking ? "2" : "12"}
+                        rx={expression === 'eating' ? "6" : "8"}
+                        ry={isBlinking ? "2" : expression === 'eating' ? "8" : "12"}
                         fill="#2a4a8a"
-                        stroke="#4a90e2"
+                        stroke={cheekColor}
                         strokeWidth="1"
-                        style={{ transition: 'ry 0.1s ease-out' }}
+                        style={{ transition: 'all 0.3s ease-out' }}
                     />
                     <circle cx="35" cy="45" r="3" fill="#e0f7ff" />
                     <circle cx="65" cy="45" r="3" fill="#e0f7ff" />
@@ -71,7 +105,7 @@ const SquidForm: React.FC<SquidFormProps> = ({ isBlinking = false, isHappy = fal
                 {/* Mouth */}
                 <path
                     d={getMouthPath()}
-                    stroke="#2a4a8a"
+                    stroke={cheekColor}
                     strokeWidth="2"
                     fill="none"
                     style={{ transition: 'all 0.3s ease-out' }}

@@ -13,23 +13,12 @@ import { FEATURE_FLAGS } from '../constants/featureFlags';
 import Store from './Store/Store';
 import { StoreItem } from '../constants/storeItems';
 import { StoreHandler } from '../handlers/StoreHandler';
+import { ParticleHandler, Particle } from '../handlers/ParticleHandler';
 import { handlePurchase } from './Store/storeLogic';
 
 interface Position {
   x: number;
   y: number;
-}
-
-interface Particle {
-  id: number;
-  x: number;
-  y: number;
-  size: number;
-  speed: number;
-  angle: number;
-  vx?: number;
-  vy?: number;
-  pushTime?: number;
 }
 
 interface Cell {
@@ -67,6 +56,7 @@ interface FoodParticle {
   y: number;
   size: number;
   eaten: boolean;
+  isBeingEaten: boolean;
   type: number;
   createdAt: number;
   opacity: number;
@@ -314,29 +304,70 @@ const BackgroundCell: React.FC<{
 const SquidForm: React.FC<{
   isBlinking?: boolean;
   isHappy?: boolean;
-  expression?: 'content' | 'trying' | 'eating';
+  expression?: 'content' | 'sucking';
   scale?: number;
 }> = ({ isBlinking = false, isHappy = false, expression = 'content', scale = 1 }) => {
   const [tentaclePhase, setTentaclePhase] = useState(0);
+  const [suckIntensity, setSuckIntensity] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setTentaclePhase(prev => (prev + 0.1) % (Math.PI * 2));
+      if (expression === 'sucking') {
+        setSuckIntensity(prev => (prev + 0.1) % 1);
+      }
     }, 50);
     return () => clearInterval(interval);
-  }, []);
+  }, [expression]);
 
   const getMouthPath = () => {
     switch (expression) {
-      case 'trying':
-        return `M40 60 Q50 65 60 60`;
-      case 'eating':
-        return `M35 60 Q50 75 65 60`;
+      case 'sucking':
+        // Circular sucking mouth with inner and outer paths
+        return `
+          M35 60
+          C35 60, 40 45, 50 45
+          C60 45, 65 60, 65 60
+          C65 60, 60 75, 50 75
+          C40 75, 35 60, 35 60
+          M40 60
+          C40 60, 45 50, 50 50
+          C55 50, 60 60, 60 60
+          C60 60, 55 70, 50 70
+          C45 70, 40 60, 40 60
+        `;
       case 'content':
       default:
-        return `M40 60 Q50 70 60 60`;
+        return `M40 60
+                C40 60, 45 65, 50 70
+                C55 65, 60 60, 60 60
+                C60 60, 55 65, 50 70
+                C45 65, 40 60, 40 60`;
     }
   };
+
+  const getEyeShape = () => {
+    switch (expression) {
+      case 'sucking':
+        return {
+          leftEye: { rx: 8, ry: 4 }, // Squinted eyes for intense sucking
+          rightEye: { rx: 8, ry: 4 }
+        };
+      case 'content':
+      default:
+        return {
+          leftEye: { rx: 8, ry: 12 },
+          rightEye: { rx: 8, ry: 12 }
+        };
+    }
+  };
+
+  const eyeShape = getEyeShape();
+
+  // Calculate shake effect for sucking
+  const shakeOffset = expression === 'sucking'
+    ? Math.sin(suckIntensity * Math.PI * 2) * 2
+    : 0;
 
   return (
     <svg
@@ -346,9 +377,9 @@ const SquidForm: React.FC<{
       style={{
         filter: `drop-shadow(0 0 16px #4a90e2aa)`,
         transformOrigin: 'center center',
-        transform: `scale(${scale})`,
+        transform: `scale(${scale}) translate(${shakeOffset}px, ${shakeOffset}px)`,
         overflow: 'visible',
-        transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)', // Bouncy animation
+        transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
       }}
     >
       {/* Main body */}
@@ -364,27 +395,51 @@ const SquidForm: React.FC<{
           strokeWidth="2"
         />
 
+        {/* Cheeks - only visible during sucking */}
+        {expression === 'sucking' && (
+          <>
+            <ellipse
+              cx="35"
+              cy="55"
+              rx="15"
+              ry="10"
+              fill="#ff6b6b"
+              fillOpacity={0.3 + Math.sin(suckIntensity * Math.PI) * 0.2}
+              style={{ transition: 'all 0.3s ease-out' }}
+            />
+            <ellipse
+              cx="65"
+              cy="55"
+              rx="15"
+              ry="10"
+              fill="#ff6b6b"
+              fillOpacity={0.3 + Math.sin(suckIntensity * Math.PI) * 0.2}
+              style={{ transition: 'all 0.3s ease-out' }}
+            />
+          </>
+        )}
+
         {/* Eyes */}
         <g>
           <ellipse
             cx="35"
             cy="45"
-            rx="8"
-            ry={isBlinking ? "2" : "12"}
+            rx={isBlinking ? "8" : eyeShape.leftEye.rx}
+            ry={isBlinking ? "2" : eyeShape.leftEye.ry}
             fill="#2a4a8a"
             stroke="#4a90e2"
             strokeWidth="1"
-            style={{ transition: 'ry 0.1s ease-out' }}
+            style={{ transition: 'all 0.3s ease-out' }}
           />
           <ellipse
             cx="65"
             cy="45"
-            rx="8"
-            ry={isBlinking ? "2" : "12"}
+            rx={isBlinking ? "8" : eyeShape.rightEye.rx}
+            ry={isBlinking ? "2" : eyeShape.rightEye.ry}
             fill="#2a4a8a"
             stroke="#4a90e2"
             strokeWidth="1"
-            style={{ transition: 'ry 0.1s ease-out' }}
+            style={{ transition: 'all 0.3s ease-out' }}
           />
           <circle cx="35" cy="45" r="3" fill="#e0f7ff" />
           <circle cx="65" cy="45" r="3" fill="#e0f7ff" />
@@ -395,7 +450,8 @@ const SquidForm: React.FC<{
           d={getMouthPath()}
           stroke="#2a4a8a"
           strokeWidth="2"
-          fill="none"
+          fill="#2a4a8a"
+          fillOpacity="0.3"
           style={{ transition: 'all 0.3s ease-out' }}
         />
 
@@ -487,34 +543,95 @@ const FloatingNumber: React.FC<{ number: FloatingNumber }> = ({ number }) => {
 };
 
 const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
+  const [spiralProgress, setSpiralProgress] = useState(0);
+  const [spiralAngle, setSpiralAngle] = useState(0);
+
+  useEffect(() => {
+    if (particle.isBeingEaten) {
+      console.log(`Starting spiral animation for particle ${particle.id}`);
+      const startTime = Date.now();
+      const duration = ANIMATION.EATING_DURATION;
+      const startX = particle.x;
+      const startY = particle.y;
+      const centerX = 50; // Center of viewport
+      const centerY = 50;
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Calculate spiral path
+        const angle = progress * Math.PI * 4; // Two full rotations
+        const radius = (1 - progress) * 30; // Shrinking radius
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+
+        setSpiralProgress(progress);
+        setSpiralAngle(angle);
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          console.log(`Finished spiral animation for particle ${particle.id}`);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    }
+  }, [particle.isBeingEaten, particle.id]);
+
   const getParticleColor = () => {
     switch (particle.type) {
-      case 1: return '#ff6b6b'; // Reddish
-      case 2: return '#4ecdc4'; // Teal
-      case 3: return '#ffe66d'; // Yellow
-      case 4: return '#95e1d3'; // Mint
+      case 1: return '#ff6b6b';
+      case 2: return '#4ecdc4';
+      case 3: return '#ffe66d';
+      case 4: return '#95e1d3';
       default: return '#ff6b6b';
     }
   };
 
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: `${particle.x}%`,
-        top: `${particle.y}%`,
-        width: `${particle.size}px`,
-        height: `${particle.size}px`,
+  const getParticleStyle = (): React.CSSProperties => {
+    if (particle.isBeingEaten) {
+      const angle = spiralAngle;
+      const radius = (1 - spiralProgress) * 30;
+      const x = 50 + Math.cos(angle) * radius;
+      const y = 50 + Math.sin(angle) * radius;
+
+      console.log(`Particle ${particle.id} position: (${x}, ${y}), progress: ${spiralProgress}`);
+
+      return {
+        position: 'absolute' as const,
+        left: `${x}%`,
+        top: `${y}%`,
+        width: `${particle.size * (1 - spiralProgress)}px`,
+        height: `${particle.size * (1 - spiralProgress)}px`,
         background: getParticleColor(),
         borderRadius: '50%',
-        opacity: particle.eaten ? 0 : particle.opacity,
+        opacity: particle.eaten ? 0 : particle.opacity * (1 - spiralProgress),
         transform: 'translate(-50%, -50%)',
-        transition: 'opacity 0.3s ease-out',
+        transition: 'none',
         filter: 'blur(1px)',
         boxShadow: '0 0 10px currentColor',
-      }}
-    />
-  );
+      };
+    }
+
+    return {
+      position: 'absolute' as const,
+      left: `${particle.x}%`,
+      top: `${particle.y}%`,
+      width: `${particle.size}px`,
+      height: `${particle.size}px`,
+      background: getParticleColor(),
+      borderRadius: '50%',
+      opacity: particle.eaten ? 0 : particle.opacity,
+      transform: 'translate(-50%, -50%)',
+      transition: 'opacity 0.3s ease-out',
+      filter: 'blur(1px)',
+      boxShadow: '0 0 10px currentColor',
+    };
+  };
+
+  return <div style={getParticleStyle()} />;
 };
 
 const MorphingCell: React.FC<{ progress: number }> = ({ progress }) => {
@@ -637,6 +754,10 @@ const Game: React.FC = () => {
   const gameRef = useRef<HTMLDivElement>(null);
   const lastClickTime = useRef<number>(0);
 
+  // Add eating behavior states
+  const [isEating, setIsEating] = useState(false);
+  const [foodBeingEaten, setFoodBeingEaten] = useState<Set<number>>(new Set());
+
   // --- Smooth spring for jiggle ---
   const [jiggleTarget, setJiggleTarget] = useState(0);
   const jiggleRef = useRef(0);
@@ -681,7 +802,7 @@ const Game: React.FC = () => {
 
   // Add new state for target food position and squid expression
   const [targetFoodPosition, setTargetFoodPosition] = useState<{ x: number; y: number } | null>(null);
-  const [squidExpression, setSquidExpression] = useState<'content' | 'trying' | 'eating'>('content');
+  const [squidExpression, setSquidExpression] = useState<'content' | 'sucking'>('content');
 
   const [purchasedItems, setPurchasedItems] = useState<{ [key: string]: number }>({});
   const [clickBonus, setClickBonus] = useState(0);
@@ -690,6 +811,62 @@ const Game: React.FC = () => {
 
   // Create store handler
   const storeHandlerRef = useRef<StoreHandler | null>(null);
+
+  // Add state for developer logs
+  const [devLogs, setDevLogs] = useState<string[]>([]);
+
+  // Add state for logging preferences
+  const [loggingPreferences, setLoggingPreferences] = useState({
+    squid: false,
+    foodParticles: false
+  });
+
+  // Add state to track object logs
+  const [objectLogs, setObjectLogs] = useState<{
+    [key: string]: {
+      message: string;
+      timestamp: string;
+    }
+  }>({});
+
+  // Add function to update object logs
+  const updateObjectLog = (objectId: string, message: string, category: 'squid' | 'foodParticles') => {
+    if (FEATURE_FLAGS.DEVELOPMENT && loggingPreferences[category]) {
+      setObjectLogs(prev => ({
+        ...prev,
+        [objectId]: {
+          message: `[${category.toUpperCase()}] ${message}`,
+          timestamp: new Date().toLocaleTimeString()
+        }
+      }));
+    }
+  };
+
+  // Add logging for squid state changes
+  useEffect(() => {
+    if (loggingPreferences.squid) {
+      updateObjectLog(
+        'squid',
+        `Position: (${squidPosition.x.toFixed(2)}, ${squidPosition.y.toFixed(2)}), Scale: ${squidFormOpacity.toFixed(2)}, Expression: ${squidExpression}`,
+        'squid'
+      );
+    }
+  }, [squidPosition, squidFormOpacity, squidExpression, loggingPreferences.squid]);
+
+  // Add logging for food particles
+  useEffect(() => {
+    if (loggingPreferences.foodParticles) {
+      foodParticles.forEach(particle => {
+        if (!particle.eaten) {
+          updateObjectLog(
+            `particle-${particle.id}`,
+            `Pos(${particle.x.toFixed(2)}, ${particle.y.toFixed(2)}), Size: ${particle.size}, BeingEaten: ${particle.isBeingEaten}`,
+            'foodParticles'
+          );
+        }
+      });
+    }
+  }, [foodParticles, loggingPreferences.foodParticles]);
 
   // Initialize store handler
   useEffect(() => {
@@ -925,255 +1102,35 @@ const Game: React.FC = () => {
   }, [clickCount, cellVelocity]);
 
   // Initialize particles
-  useEffect(() => {
-    const initialParticles: Particle[] = Array.from({ length: 50 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 3 + 1,
-      speed: Math.random() * 0.2 + 0.1,
-      angle: Math.random() * Math.PI * 2,
-      vx: 0,
-      vy: 0,
-      pushTime: 0,
-    }));
-    setParticles(initialParticles);
-  }, []);
+  const particleHandlerRef = useRef<ParticleHandler | null>(null);
 
-  // Animate particles
+  // Initialize particle handler
   useEffect(() => {
-    const animate = () => {
-      setParticles(prev => prev.map(particle => {
-        // If being pushed, animate velocity
-        if (particle.pushTime && particle.pushTime > 0) {
-          // Decay push over time
-          const decay = 0.92;
-          const vx = (particle.vx || 0) * decay;
-          const vy = (particle.vy || 0) * decay;
-          const pushTime = particle.pushTime - 1;
-          return {
-            ...particle,
-            x: (particle.x + vx + 100) % 100,
-            y: (particle.y + vy + 100) % 100,
-            vx,
-            vy,
-            pushTime: pushTime > 0 ? pushTime : 0,
-          };
-        } else {
-          // Normal floating
-          return {
-            ...particle,
-            x: (particle.x + Math.cos(particle.angle) * particle.speed + 100) % 100,
-            y: (particle.y + Math.sin(particle.angle) * particle.speed + 100) % 100,
-            angle: particle.angle + (Math.random() - 0.5) * 0.1,
-            vx: 0,
-            vy: 0,
-            pushTime: 0,
-          };
+    particleHandlerRef.current = new ParticleHandler(
+      {
+        particles: [],
+        isAnimating: true,
+        lastUpdateTime: Date.now()
+      },
+      {
+        onParticleUpdate: (updatedParticles) => {
+          setParticles(updatedParticles);
+        },
+        onStateChange: (newState) => {
+          console.log('Particle state changed:', newState);
+        },
+        onError: (error) => {
+          console.error('Particle handler error:', error);
         }
-      }));
+      }
+    );
+
+    return () => {
+      if (particleHandlerRef.current) {
+        particleHandlerRef.current.cleanup();
+      }
     };
-    const interval = setInterval(animate, 50);
-    return () => clearInterval(interval);
   }, []);
-
-  // Initialize background cells with entrance animation
-  useEffect(() => {
-    if (clickCount >= 10050) {
-      const cells = Array.from({ length: 20 }, () => {
-        const side = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
-        let x = 0;
-        let y = 0;
-        switch (side) {
-          case 0: // top
-            x = Math.random() * 100;
-            y = -20;
-            break;
-          case 1: // right
-            x = 120;
-            y = Math.random() * 100;
-            break;
-          case 2: // bottom
-            x = Math.random() * 100;
-            y = 120;
-            break;
-          case 3: // left
-            x = -20;
-            y = Math.random() * 100;
-            break;
-        }
-        return {
-          type: Math.floor(Math.random() * 4) + 1,
-          x,
-          y,
-          rotation: Math.random() * Math.PI * 2,
-          speed: 0.05 + Math.random() * 0.1,
-          direction: Math.random() * Math.PI * 2,
-          opacity: 0
-        };
-      });
-      setBackgroundCells(cells);
-    }
-  }, [clickCount]);
-
-  // Animate background cells with fade in
-  useEffect(() => {
-    if (clickCount >= 10050) {
-      const interval = setInterval(() => {
-        setBackgroundCells(prev => prev.map(cell => {
-          const newX = cell.x + Math.cos(cell.direction) * cell.speed;
-          const newY = cell.y + Math.sin(cell.direction) * cell.speed;
-          const newOpacity = Math.min(0.6, cell.opacity + 0.01);
-
-          return {
-            ...cell,
-            x: newX,
-            y: newY,
-            direction: cell.direction + (Math.random() - 0.5) * 0.02,
-            opacity: newOpacity
-          };
-        }));
-      }, 50);
-      return () => clearInterval(interval);
-    }
-  }, [clickCount]);
-
-  // Handle autonomous squid blinking
-  useEffect(() => {
-    if (clickCount >= 10100) {
-      const interval = setInterval(() => {
-        // Random blink every 2-4 seconds
-        if (Math.random() < 0.1) { // 10% chance each check
-          setIsSquidBlinking(true);
-          setTimeout(() => setIsSquidBlinking(false), 100);
-        }
-      }, 100);
-      setAutoBlinkInterval(interval);
-      return () => {
-        if (interval) clearInterval(interval);
-      };
-    }
-  }, [clickCount]);
-
-  // Update squid movement logic
-  useEffect(() => {
-    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
-      const interval = setInterval(() => {
-        setSquidPosition(prev => {
-          const activeParticles = foodParticles.filter(p => !p.eaten);
-          const viewportCenter = { x: 50, y: 50 };
-
-          if (targetFoodPosition) {
-            const dx = targetFoodPosition.x - prev.x;
-            const dy = targetFoodPosition.y - prev.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            // Check for food collision with adjusted radius
-            activeParticles.forEach(particle => {
-              const foodDx = particle.x - prev.x;
-              const foodDy = particle.y - prev.y;
-              const foodDist = Math.sqrt(foodDx * foodDx + foodDy * foodDy);
-
-              // Use a larger detection radius for visual accuracy
-              if (foodDist < MOVEMENT.FOOD_DETECTION_RADIUS) {
-                setFoodParticles(prev =>
-                  prev.map(p => p.id === particle.id ? { ...p, eaten: true } : p)
-                );
-                setSquidExpression('eating');
-                setTimeout(() => setSquidExpression('trying'), ANIMATION.BLINK_DURATION);
-              }
-            });
-
-            // Only consider food reached when we're very close
-            if (dist < MOVEMENT.CENTER_THRESHOLD) {
-              setTargetFoodPosition(null);
-              setSquidExpression('content');
-              return prev;
-            }
-
-            const speed = MOVEMENT.SQUID_SPEED * 2;
-            const targetVx = (dx / dist) * speed;
-            const targetVy = (dy / dist) * speed;
-
-            // Remove the overshoot factor for more precise movement
-            const newX = prev.x + squidVelocity.x;
-            const newY = prev.y + squidVelocity.y;
-
-            setSquidVelocity(prevVel => ({
-              x: prevVel.x * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVx * MOVEMENT.SQUID_VELOCITY_INFLUENCE,
-              y: prevVel.y * MOVEMENT.SQUID_VELOCITY_DAMPING + targetVy * MOVEMENT.SQUID_VELOCITY_INFLUENCE
-            }));
-
-            return {
-              x: Math.max(0, Math.min(100, newX)),
-              y: Math.max(0, Math.min(100, newY))
-            };
-          }
-
-          if (activeParticles.length > 0) {
-            setTargetFoodPosition({ x: activeParticles[0].x, y: activeParticles[0].y });
-            setSquidExpression('trying');
-            return prev;
-          }
-
-          // Make the squid swim back towards the center area when no food is present
-          const dx = viewportCenter.x - prev.x;
-          const dy = viewportCenter.y - prev.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          // Only start swimming back if we're far from center
-          if (dist > MOVEMENT.CENTER_THRESHOLD * 2) {
-            const speed = MOVEMENT.SQUID_IDLE_SPEED * 0.5; // Slower speed for idle swimming
-            const targetVx = (dx / dist) * speed;
-            const targetVy = (dy / dist) * speed;
-
-            // Add some randomness to the movement
-            const randomAngle = Math.random() * Math.PI * 2;
-            const randomForce = Math.random() * 0.2;
-            const randomVx = Math.cos(randomAngle) * randomForce;
-            const randomVy = Math.sin(randomAngle) * randomForce;
-
-            setSquidVelocity(prevVel => ({
-              x: prevVel.x * MOVEMENT.SQUID_VELOCITY_DAMPING + (targetVx + randomVx) * MOVEMENT.SQUID_VELOCITY_INFLUENCE,
-              y: prevVel.y * MOVEMENT.SQUID_VELOCITY_DAMPING + (targetVy + randomVy) * MOVEMENT.SQUID_VELOCITY_INFLUENCE
-            }));
-
-            const newX = prev.x + squidVelocity.x;
-            const newY = prev.y + squidVelocity.y;
-
-            return {
-              x: Math.max(0, Math.min(100, newX)),
-              y: Math.max(0, Math.min(100, newY))
-            };
-          }
-
-          // When close to center, just drift slowly
-          setSquidVelocity(prevVel => ({
-            x: prevVel.x * 0.95,
-            y: prevVel.y * 0.95
-          }));
-
-          const newX = prev.x + squidVelocity.x;
-          const newY = prev.y + squidVelocity.y;
-
-          return {
-            x: Math.max(0, Math.min(100, newX)),
-            y: Math.max(0, Math.min(100, newY))
-          };
-        });
-      }, ANIMATION.MOVEMENT_INTERVAL);
-      return () => clearInterval(interval);
-    }
-  }, [clickCount, foodParticles, squidVelocity, targetFoodPosition]);
-
-  // Initialize squid position when it first appears
-  useEffect(() => {
-    if (clickCount >= 10100) {
-      setSquidPosition({ x: 50, y: 50 }); // Start at center
-      setSquidVelocity({ x: 0, y: 0 });
-      setSquidExpression('content');
-    }
-  }, [clickCount]);
 
   // Handle cell cluster division
   useEffect(() => {
@@ -1331,6 +1288,86 @@ const Game: React.FC = () => {
     }
   }, [clickCount, showSquidForm]);
 
+  // Calculate total clicks from all sources
+  const calculateTotalClicks = () => {
+    const baseClicks = 1 + clickBonus; // Base click (1) + permanent bonus
+    return baseClicks * clickMultiplier * temporaryMultiplier; // Apply multipliers
+  };
+
+  // Add effect to change expression when food particles are present
+  useEffect(() => {
+    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+      const hasFood = foodParticles.some(particle => !particle.eaten);
+      if (hasFood && !isEating) {
+        setSquidExpression('sucking');
+      } else if (!hasFood && !isEating) {
+        setSquidExpression('content');
+      }
+    }
+  }, [clickCount, foodParticles, isEating]);
+
+  // Modify the eating behavior to use the new logging
+  useEffect(() => {
+    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+      const checkForFood = () => {
+        const availableFood = foodParticles.filter(particle =>
+          !particle.eaten && !foodBeingEaten.has(particle.id)
+        );
+
+        if (availableFood.length > 0) {
+          // Start sucking animation
+          setIsEating(true);
+          setSquidExpression('sucking');
+
+          // Mark all available food as being eaten
+          const newFoodBeingEaten = new Set(foodBeingEaten);
+          availableFood.forEach(food => {
+            newFoodBeingEaten.add(food.id);
+          });
+          setFoodBeingEaten(newFoodBeingEaten);
+
+          // Update food particles to show eating animation
+          setFoodParticles(prev =>
+            prev.map(particle => {
+              if (newFoodBeingEaten.has(particle.id)) {
+                updateObjectLog(
+                  `particle-${particle.id}`,
+                  `Starting spiral animation for particle at (${particle.x.toFixed(2)}, ${particle.y.toFixed(2)})`,
+                  'foodParticles'
+                );
+                return { ...particle, isBeingEaten: true };
+              }
+              return particle;
+            })
+          );
+
+          // After eating animation completes, mark food as eaten
+          setTimeout(() => {
+            setFoodParticles(prev =>
+              prev.map(particle => {
+                if (newFoodBeingEaten.has(particle.id)) {
+                  updateObjectLog(
+                    `particle-${particle.id}`,
+                    'Particle eaten, removing from scene',
+                    'foodParticles'
+                  );
+                  return { ...particle, eaten: true };
+                }
+                return particle;
+              })
+            );
+            setFoodBeingEaten(new Set());
+            setIsEating(false);
+            setSquidExpression('content');
+          }, ANIMATION.EATING_DURATION);
+        }
+      };
+
+      const interval = setInterval(checkForFood, ANIMATION.EATING_CHECK_INTERVAL);
+      return () => clearInterval(interval);
+    }
+  }, [clickCount, foodParticles, isEating, foodBeingEaten]);
+
   // Calculate morph progress
   useEffect(() => {
     if (clickCount >= 10050 && clickCount < 10100) {
@@ -1359,14 +1396,18 @@ const Game: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Calculate total clicks from all sources
-  const calculateTotalClicks = () => {
-    const baseClicks = 1 + clickBonus; // Base click (1) + permanent bonus
-    return baseClicks * clickMultiplier * temporaryMultiplier; // Apply multipliers
-  };
-
-  // Modify handleClick to use the total clicks
+  // Update handleClick to check if click is within game area
   const handleClick = (e: React.MouseEvent) => {
+    // Check if click is within developer controls or store
+    const target = e.target as HTMLElement;
+    const isDevArea = target.closest('[data-dev-area="true"]') !== null;
+    const isStoreArea = target.closest('[data-store-area="true"]') !== null;
+
+    // If click is in dev area or store area, don't process game click
+    if (isDevArea || isStoreArea) {
+      return;
+    }
+
     // Add click cooldown check
     const now = Date.now();
     if (now - lastClickTime.current < CLICK_THRESHOLDS.CLICK_COOLDOWN) {
@@ -1378,6 +1419,11 @@ const Game: React.FC = () => {
     if (rect) {
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+      // Push particles on click
+      if (particleHandlerRef.current) {
+        particleHandlerRef.current.pushParticles(x, y);
+      }
 
       // Add floating number with total clicks
       const newNumber: FloatingNumber = {
@@ -1421,6 +1467,7 @@ const Game: React.FC = () => {
               size: Math.random() * (FOOD.MAX_SIZE - FOOD.MIN_SIZE) + FOOD.MIN_SIZE,
               type: Math.floor(Math.random() * FOOD.TYPES) + 1,
               eaten: false,
+              isBeingEaten: false,
               opacity: 1,
               createdAt: Date.now()
             }
@@ -1473,7 +1520,7 @@ const Game: React.FC = () => {
             isBlinking={isSquidBlinking}
             isHappy={squidMood.isHappy}
             expression={squidExpression}
-            scale={squidFormOpacity * 2}
+            scale={squidFormOpacity * 0.7} // Changed from 2 to 0.7
           />
         </div>
       );
@@ -1590,35 +1637,47 @@ const Game: React.FC = () => {
   return (
     <div
       ref={gameRef}
-      onClick={handleClick}
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'linear-gradient(45deg, #1a1a1a, #2a2a2a)',
-        cursor: 'pointer',
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        height: '100%',
         overflow: 'hidden',
+        background: '#1a1a1a',
+        cursor: 'pointer',
         userSelect: 'none',
         WebkitUserSelect: 'none',
         MozUserSelect: 'none',
         msUserSelect: 'none',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
       }}
+      onClick={handleClick}
     >
-      {/* Developer Controls */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '20px',
-          left: '20px',
-          display: 'flex',
-          gap: '10px',
-          zIndex: 1000,
-        }}
-      >
-        {FEATURE_FLAGS.DEVELOPMENT && (
+      {/* Developer Controls - Fixed positioning */}
+      {FEATURE_FLAGS.DEVELOPMENT && (
+        <div
+          data-dev-area="true"
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            zIndex: 1000,
+            background: 'rgba(0, 0, 0, 0.7)',
+            padding: '15px',
+            borderRadius: '8px',
+            border: '1px solid rgba(74, 144, 226, 0.3)',
+          }}
+        >
           <button
+            data-dev-area="true"
             onClick={(e) => {
               e.stopPropagation();
               setClickMultiplier(prev => {
@@ -1640,19 +1699,111 @@ const Game: React.FC = () => {
               borderRadius: '5px',
               cursor: 'pointer',
               transition: 'all 0.2s ease-out',
+              userSelect: 'none',
             }}
           >
             Click Multiplier: x{clickMultiplier.toLocaleString()}
           </button>
-        )}
-      </div>
+
+          {/* Logging Control Checkboxes */}
+          <div
+            data-dev-area="true"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              padding: '10px',
+              background: 'rgba(0, 0, 0, 0.5)',
+              borderRadius: '5px',
+            }}
+          >
+            <label
+              data-dev-area="true"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#4a90e2',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <input
+                data-dev-area="true"
+                type="checkbox"
+                checked={loggingPreferences.squid}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  setLoggingPreferences(prev => ({
+                    ...prev,
+                    squid: e.target.checked
+                  }));
+                }}
+                style={{ cursor: 'pointer' }}
+              />
+              Squid
+            </label>
+            <label
+              data-dev-area="true"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#4a90e2',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <input
+                data-dev-area="true"
+                type="checkbox"
+                checked={loggingPreferences.foodParticles}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  setLoggingPreferences(prev => ({
+                    ...prev,
+                    foodParticles: e.target.checked
+                  }));
+                }}
+                style={{ cursor: 'pointer' }}
+              />
+              Food Particles
+            </label>
+          </div>
+
+          {/* Developer Logs Display */}
+          <div
+            data-dev-area="true"
+            style={{
+              background: 'rgba(0, 0, 0, 0.8)',
+              padding: '10px',
+              borderRadius: '5px',
+              maxHeight: '200px',
+              overflowY: 'auto',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              color: '#4a90e2',
+              border: '1px solid rgba(74, 144, 226, 0.3)',
+              width: '300px',
+            }}
+          >
+            {Object.entries(objectLogs).map(([id, log]) => (
+              <div key={id} style={{ marginBottom: '4px' }}>
+                {log.timestamp}: {log.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Store - will only render when there are available items */}
-      <Store
-        clickCount={clickCount}
-        onPurchase={handleStorePurchase}
-        purchasedItems={purchasedItems}
-      />
+      <div data-store-area="true">
+        <Store
+          clickCount={clickCount}
+          onPurchase={handleStorePurchase}
+          purchasedItems={purchasedItems}
+        />
+      </div>
 
       {/* Petri dish background */}
       <div
@@ -1752,6 +1903,25 @@ const Game: React.FC = () => {
       >
         Clicks: {clickCount}
       </div>
+
+      {/* Update SquidForm to include eating expression */}
+      {clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION && (
+        <div style={{
+          position: 'absolute',
+          left: `${squidPosition.x}%`,
+          top: `${squidPosition.y}%`,
+          transform: 'translate(-50%, -50%)',
+          width: '300px',
+          height: '300px',
+        }}>
+          <SquidForm
+            isBlinking={isSquidBlinking}
+            isHappy={squidMood.isHappy}
+            expression={squidExpression}
+            scale={squidFormOpacity * 0.7} // Changed from 2 to 0.7
+          />
+        </div>
+      )}
     </div>
   );
 };
