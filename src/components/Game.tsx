@@ -546,44 +546,57 @@ const FloatingNumber: React.FC<{ number: FloatingNumber }> = ({ number }) => {
 const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
   const [spiralProgress, setSpiralProgress] = useState(0);
   const [spiralAngle, setSpiralAngle] = useState(0);
+  const animationStarted = useRef(false);
+  const particleRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (particle.isBeingEaten) {
+    if (particle.isBeingEaten && !animationStarted.current) {
+      animationStarted.current = true;
       console.log(`Starting spiral animation for particle ${particle.id}`);
 
-      // Calculate distance from squid's mouth (at 50,50)
-      const dx = particle.x - 50;
-      const dy = particle.y - 50;
-      const distance = Math.sqrt(dx * dx + dy * dy);
+      // Get the game container position for target calculations
+      const gameRect = document.querySelector('[data-game-container="true"]')?.getBoundingClientRect();
+      if (!gameRect) {
+        console.error('Could not get game container position for animation');
+        return;
+      }
 
-      // Calculate delay based on distance (further particles start later)
-      // Max delay of 500ms for particles at the edge of the screen
+      // Use the initial click position (stored in particle.x and particle.y) for the start
+      const startXPixels = (particle.x / 100) * gameRect.width;
+      const startYPixels = (particle.y / 100) * gameRect.height;
+
+      // Calculate target position (center of game container)
+      const targetXPixels = gameRect.width / 2;
+      const targetYPixels = gameRect.height / 2;
+
+      // Calculate delay based on distance in pixels
+      const dx = startXPixels - targetXPixels;
+      const dy = startYPixels - targetYPixels;
+      const distance = Math.sqrt(dx * dx + dy * dy);
       const maxDelay = 500;
-      const delay = Math.min((distance / 50) * maxDelay, maxDelay);
+      const delay = Math.min((distance / 200) * maxDelay, maxDelay);
 
       console.log(`Particle ${particle.id} starting animation with ${delay}ms delay`);
 
-      // Start animation after delay
       setTimeout(() => {
         const startTime = Date.now();
         const duration = ANIMATION.EATING_DURATION;
-        const startX = particle.x;
-        const startY = particle.y;
-        const targetX = 50;
-        const targetY = 50;
 
         const animate = () => {
           const elapsed = Date.now() - startTime;
           const progress = Math.min(elapsed / duration, 1);
 
-          // Calculate spiral path
+          // Calculate spiral path in pixel coordinates
           const angle = progress * Math.PI * 4; // Two full rotations
-          // Adjust radius to be percentage-based (15% of screen)
-          const radius = (1 - progress) * 15;
+          const radius = (1 - progress) * (gameRect.width * 0.15); // 15% of game width
 
-          // Interpolate between start and target positions (both in percentages)
-          const x = startX + (targetX - startX) * progress + Math.cos(angle) * radius;
-          const y = startY + (targetY - startY) * progress + Math.sin(angle) * radius;
+          // Interpolate between start and target positions in pixels
+          const x = startXPixels + (targetXPixels - startXPixels) * progress + Math.cos(angle) * radius;
+          const y = startYPixels + (targetYPixels - startYPixels) * progress + Math.sin(angle) * radius;
+
+          // Convert back to percentages for rendering
+          const xPercent = (x / gameRect.width) * 100;
+          const yPercent = (y / gameRect.height) * 100;
 
           setSpiralProgress(progress);
           setSpiralAngle(angle);
@@ -613,24 +626,32 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
   const getParticleStyle = (): React.CSSProperties => {
     if (particle.isBeingEaten) {
       const angle = spiralAngle;
-      // Adjust radius to be percentage-based (15% of screen)
       const radius = (1 - spiralProgress) * 15;
 
-      // Calculate the interpolated position (all in percentages)
-      const startX = particle.x;
-      const startY = particle.y;
-      const targetX = 50; // Center of screen (50%)
-      const targetY = 50; // Center of screen (50%)
+      // Get the game container for calculations
+      const gameRect = document.querySelector('[data-game-container="true"]')?.getBoundingClientRect();
+      if (!gameRect) return {};
 
-      const x = startX + (targetX - startX) * spiralProgress + Math.cos(angle) * radius;
-      const y = startY + (targetY - startY) * spiralProgress + Math.sin(angle) * radius;
+      // Use the initial click position for the start
+      const startXPixels = (particle.x / 100) * gameRect.width;
+      const startYPixels = (particle.y / 100) * gameRect.height;
 
-      console.log(`Particle ${particle.id} position: (${x}%, ${y}%), progress: ${spiralProgress}`);
+      // Calculate target position (center of game container)
+      const targetXPixels = gameRect.width / 2;
+      const targetYPixels = gameRect.height / 2;
+
+      // Calculate position in pixels
+      const x = startXPixels + (targetXPixels - startXPixels) * spiralProgress + Math.cos(angle) * radius;
+      const y = startYPixels + (targetYPixels - startYPixels) * spiralProgress + Math.sin(angle) * radius;
+
+      // Convert back to percentages for rendering
+      const xPercent = (x / gameRect.width) * 100;
+      const yPercent = (y / gameRect.height) * 100;
 
       return {
         position: 'absolute' as const,
-        left: `${x}%`,
-        top: `${y}%`,
+        left: `${xPercent}%`,
+        top: `${yPercent}%`,
         width: `${particle.size * (1 - spiralProgress)}px`,
         height: `${particle.size * (1 - spiralProgress)}px`,
         background: getParticleColor(),
@@ -659,7 +680,7 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
     };
   };
 
-  return <div style={getParticleStyle()} />;
+  return <div ref={particleRef} style={getParticleStyle()} />;
 };
 
 const MorphingCell: React.FC<{ progress: number }> = ({ progress }) => {
@@ -1637,6 +1658,7 @@ const Game: React.FC = () => {
   return (
     <div
       ref={gameRef}
+      data-game-container="true"
       style={{
         position: 'fixed',
         top: 0,
