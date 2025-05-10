@@ -550,37 +550,55 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
   useEffect(() => {
     if (particle.isBeingEaten) {
       console.log(`Starting spiral animation for particle ${particle.id}`);
-      const startTime = Date.now();
-      const duration = ANIMATION.EATING_DURATION;
-      const startX = particle.x;
-      const startY = particle.y;
-      // Use squid's position for the target
-      const targetX = 50; // Squid's X position (percentage)
-      const targetY = 50; // Squid's Y position (percentage)
 
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
+      // Calculate distance from squid's mouth (at 50,50)
+      const dx = particle.x - 50;
+      const dy = particle.y - 50;
+      const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Calculate spiral path
-        const angle = progress * Math.PI * 4; // Two full rotations
-        const radius = (1 - progress) * 15; // Reduced radius to 15% of screen
-        const x = targetX + Math.cos(angle) * radius;
-        const y = targetY + Math.sin(angle) * radius;
+      // Calculate delay based on distance (further particles start later)
+      // Max delay of 500ms for particles at the edge of the screen
+      const maxDelay = 500;
+      const delay = Math.min((distance / 50) * maxDelay, maxDelay);
 
-        setSpiralProgress(progress);
-        setSpiralAngle(angle);
+      console.log(`Particle ${particle.id} starting animation with ${delay}ms delay`);
 
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          console.log(`Finished spiral animation for particle ${particle.id}`);
-        }
-      };
+      // Start animation after delay
+      setTimeout(() => {
+        const startTime = Date.now();
+        const duration = ANIMATION.EATING_DURATION;
+        const startX = particle.x;
+        const startY = particle.y;
+        const targetX = 50;
+        const targetY = 50;
 
-      requestAnimationFrame(animate);
+        const animate = () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+
+          // Calculate spiral path
+          const angle = progress * Math.PI * 4; // Two full rotations
+          // Adjust radius to be percentage-based (15% of screen)
+          const radius = (1 - progress) * 15;
+
+          // Interpolate between start and target positions (both in percentages)
+          const x = startX + (targetX - startX) * progress + Math.cos(angle) * radius;
+          const y = startY + (targetY - startY) * progress + Math.sin(angle) * radius;
+
+          setSpiralProgress(progress);
+          setSpiralAngle(angle);
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            console.log(`Finished spiral animation for particle ${particle.id}`);
+          }
+        };
+
+        requestAnimationFrame(animate);
+      }, delay);
     }
-  }, [particle.isBeingEaten, particle.id]);
+  }, [particle.isBeingEaten, particle.id, particle.x, particle.y]);
 
   const getParticleColor = () => {
     switch (particle.type) {
@@ -595,9 +613,17 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
   const getParticleStyle = (): React.CSSProperties => {
     if (particle.isBeingEaten) {
       const angle = spiralAngle;
-      const radius = (1 - spiralProgress) * 15; // Match the radius in the animation
-      const x = 50 + Math.cos(angle) * radius;
-      const y = 50 + Math.sin(angle) * radius;
+      // Adjust radius to be percentage-based (15% of screen)
+      const radius = (1 - spiralProgress) * 15;
+
+      // Calculate the interpolated position (all in percentages)
+      const startX = particle.x;
+      const startY = particle.y;
+      const targetX = 50; // Center of screen (50%)
+      const targetY = 50; // Center of screen (50%)
+
+      const x = startX + (targetX - startX) * spiralProgress + Math.cos(angle) * radius;
+      const y = startY + (targetY - startY) * spiralProgress + Math.sin(angle) * radius;
 
       console.log(`Particle ${particle.id} position: (${x}%, ${y}%), progress: ${spiralProgress}`);
 
