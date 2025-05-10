@@ -554,64 +554,30 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
       animationStarted.current = true;
       console.log(`Starting spiral animation for particle ${particle.id}`);
 
-      // Get the game container position for target calculations
-      const gameRect = document.querySelector('[data-game-container="true"]')?.getBoundingClientRect();
-      if (!gameRect) {
-        console.error('Could not get game container position for animation');
-        return;
-      }
+      const startTime = Date.now();
+      const duration = ANIMATION.EATING_DURATION;
 
-      // Use the initial click position (stored in particle.x and particle.y) for the start
-      const startXPixels = (particle.x / 100) * gameRect.width;
-      const startYPixels = (particle.y / 100) * gameRect.height;
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
 
-      // Calculate target position (center of game container)
-      const targetXPixels = gameRect.width / 2;
-      const targetYPixels = gameRect.height / 2;
+        // Calculate spiral path
+        const angle = progress * Math.PI * 4; // Two full rotations
+        const radius = (1 - progress) * 15; // 15% of container width
 
-      // Calculate delay based on distance in pixels
-      const dx = startXPixels - targetXPixels;
-      const dy = startYPixels - targetYPixels;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const maxDelay = 500;
-      const delay = Math.min((distance / 200) * maxDelay, maxDelay);
+        setSpiralProgress(progress);
+        setSpiralAngle(angle);
 
-      console.log(`Particle ${particle.id} starting animation with ${delay}ms delay`);
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          console.log(`Finished spiral animation for particle ${particle.id}`);
+        }
+      };
 
-      setTimeout(() => {
-        const startTime = Date.now();
-        const duration = ANIMATION.EATING_DURATION;
-
-        const animate = () => {
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-
-          // Calculate spiral path in pixel coordinates
-          const angle = progress * Math.PI * 4; // Two full rotations
-          const radius = (1 - progress) * (gameRect.width * 0.15); // 15% of game width
-
-          // Interpolate between start and target positions in pixels
-          const x = startXPixels + (targetXPixels - startXPixels) * progress + Math.cos(angle) * radius;
-          const y = startYPixels + (targetYPixels - startYPixels) * progress + Math.sin(angle) * radius;
-
-          // Convert back to percentages for rendering
-          const xPercent = (x / gameRect.width) * 100;
-          const yPercent = (y / gameRect.height) * 100;
-
-          setSpiralProgress(progress);
-          setSpiralAngle(angle);
-
-          if (progress < 1) {
-            requestAnimationFrame(animate);
-          } else {
-            console.log(`Finished spiral animation for particle ${particle.id}`);
-          }
-        };
-
-        requestAnimationFrame(animate);
-      }, delay);
+      requestAnimationFrame(animate);
     }
-  }, [particle.isBeingEaten, particle.id, particle.x, particle.y]);
+  }, [particle.isBeingEaten, particle.id]);
 
   const getParticleColor = () => {
     switch (particle.type) {
@@ -628,36 +594,20 @@ const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
       const angle = spiralAngle;
       const radius = (1 - spiralProgress) * 15;
 
-      // Get the game container for calculations
-      const gameRect = document.querySelector('[data-game-container="true"]')?.getBoundingClientRect();
-      if (!gameRect) return {};
-
-      // Use the initial click position for the start
-      const startXPixels = (particle.x / 100) * gameRect.width;
-      const startYPixels = (particle.y / 100) * gameRect.height;
-
-      // Calculate target position (center of game container)
-      const targetXPixels = gameRect.width / 2;
-      const targetYPixels = gameRect.height / 2;
-
-      // Calculate position in pixels
-      const x = startXPixels + (targetXPixels - startXPixels) * spiralProgress + Math.cos(angle) * radius;
-      const y = startYPixels + (targetYPixels - startYPixels) * spiralProgress + Math.sin(angle) * radius;
-
-      // Convert back to percentages for rendering
-      const xPercent = (x / gameRect.width) * 100;
-      const yPercent = (y / gameRect.height) * 100;
-
       return {
         position: 'absolute' as const,
-        left: `${xPercent}%`,
-        top: `${yPercent}%`,
+        left: `${particle.x}%`,
+        top: `${particle.y}%`,
         width: `${particle.size * (1 - spiralProgress)}px`,
         height: `${particle.size * (1 - spiralProgress)}px`,
         background: getParticleColor(),
         borderRadius: '50%',
         opacity: particle.eaten ? 0 : particle.opacity * (1 - spiralProgress),
-        transform: 'translate(-50%, -50%)',
+        transform: `
+          translate(-50%, -50%)
+          translate(${Math.cos(angle) * radius}%, ${Math.sin(angle) * radius}%)
+          translate(${(50 - particle.x) * spiralProgress}%, ${(50 - particle.y) * spiralProgress}%)
+        `,
         transition: 'none',
         filter: 'blur(1px)',
         boxShadow: '0 0 10px currentColor',
