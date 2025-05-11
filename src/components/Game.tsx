@@ -20,6 +20,7 @@ import BackgroundCell from './BackgroundCell';
 import FloatingNumber from './FloatingNumber';
 import FoodParticle from './FoodParticle';
 import { PurchasedItems } from './PurchasedItems/PurchasedItems';
+import { SatietyMeter } from './SatietyMeter/SatietyMeter';
 
 interface Position {
   x: number;
@@ -228,7 +229,13 @@ const SquidForm: React.FC<{
   isHappy?: boolean;
   expression?: 'content' | 'sucking';
   scale?: number;
-}> = ({ isBlinking = false, isHappy = false, expression = 'content', scale = 1 }) => {
+  satiety?: {
+    current: number;
+    max: number;
+    level: number;
+  };
+  onSatietyLevelUp?: () => void;
+}> = ({ isBlinking = false, isHappy = false, expression = 'content', scale = 1, satiety, onSatietyLevelUp }) => {
   const [tentaclePhase, setTentaclePhase] = useState(0);
   const [suckIntensity, setSuckIntensity] = useState(0);
 
@@ -428,6 +435,28 @@ const SquidForm: React.FC<{
           })}
         </g>
       </g>
+
+      {/* Add SatietyMeter */}
+      {satiety && onSatietyLevelUp && (
+        <foreignObject x="0" y="120" width="100" height="40">
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background: 'rgba(0, 0, 0, 0.3)',
+            borderRadius: '5px'
+          }}>
+            <SatietyMeter
+              currentSatiety={satiety.current}
+              maxSatiety={satiety.max}
+              level={satiety.level}
+              onLevelUp={onSatietyLevelUp}
+            />
+          </div>
+        </foreignObject>
+      )}
 
       {/* Gradients */}
       <defs>
@@ -1102,14 +1131,92 @@ const Game: React.FC = () => {
   // Calculate total clicks from all sources
   const calculateTotalClicks = () => {
     const baseClicks = 1 + clickBonus; // Base click (1) + permanent bonus
-    return baseClicks * clickMultiplier * temporaryMultiplier; // Apply multipliers
+    const total = baseClicks * clickMultiplier * temporaryMultiplier;
+    return Math.ceil(total); // Always round up to ensure minimum of 1 click
   };
 
-  // Add new function to handle sucking behavior
+  // Update satiety state with new level scaling
+  const [satiety, setSatiety] = useState({
+    current: 0,
+    max: 100,
+    level: 0
+  });
+
+  // Handle satiety level up with progressive difficulty
+  const handleSatietyLevelUp = () => {
+    setSatiety(prev => {
+      const newLevel = prev.level + 1;
+      // Progressive max satiety increase based on level
+      let maxIncrease;
+      if (newLevel <= 3) {
+        maxIncrease = 1.1; // 10% increase for early levels
+      } else if (newLevel <= 6) {
+        maxIncrease = 1.3; // 30% increase for mid levels
+      } else if (newLevel <= 8) {
+        maxIncrease = 1.5; // 50% increase for higher levels
+      } else {
+        maxIncrease = 1.8; // 80% increase for level 9+
+      }
+      return {
+        current: 0,
+        max: Math.floor(prev.max * maxIncrease),
+        level: newLevel
+      };
+    });
+  };
+
+  // Update satiety when eating food with progressive gain
+  const handleFoodEaten = () => {
+    setSatiety(prev => {
+      // Progressive satiety gain based on level
+      let satietyGain;
+      if (prev.level <= 3) {
+        satietyGain = 20; // Easy to fill early levels
+      } else if (prev.level <= 6) {
+        satietyGain = 15; // Moderate gain for mid levels
+      } else if (prev.level <= 8) {
+        satietyGain = 10; // Lower gain for higher levels
+      } else {
+        satietyGain = 8; // Very low gain for level 9+
+      }
+      return {
+        ...prev,
+        current: Math.min(prev.current + satietyGain, prev.max)
+      };
+    });
+  };
+
+  // Decrease satiety over time with progressive loss
+  useEffect(() => {
+    if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
+      const satietyInterval = setInterval(() => {
+        setSatiety(prev => {
+          // Progressive satiety loss based on level
+          let satietyLoss;
+          if (prev.level <= 3) {
+            satietyLoss = 3; // Moderate loss for early levels
+          } else if (prev.level <= 6) {
+            satietyLoss = 7; // Significant loss for mid levels
+          } else if (prev.level <= 8) {
+            satietyLoss = 15; // Heavy loss for higher levels
+          } else {
+            satietyLoss = 25; // Extreme loss for level 9+
+          }
+          return {
+            ...prev,
+            current: Math.max(0, prev.current - satietyLoss)
+          };
+        });
+      }, 1000);
+
+      return () => clearInterval(satietyInterval);
+    }
+  }, [clickCount]);
+
+  // Update the handleSuckingBehavior to use the new satiety gain
   const handleSuckingBehavior = useCallback(() => {
     if (clickCount < CLICK_THRESHOLDS.SQUID_TRANSFORMATION) return;
 
-    // Only check for new particles to suck if squid is in content mode
     if (squidExpression !== 'content') {
       console.log('Squid is already sucking, ignoring new particles');
       return;
@@ -1122,17 +1229,14 @@ const Game: React.FC = () => {
     if (availableFood.length >= FOOD.MIN_PARTICLES_FOR_SUCK) {
       console.log(`Found ${availableFood.length} available food particles, starting sucking animation`);
 
-      // Start sucking animation
       setSquidExpression('sucking');
 
-      // Mark all available food as being eaten
       const newFoodBeingEaten = new Set(foodBeingEaten);
       availableFood.forEach(food => {
         newFoodBeingEaten.add(food.id);
       });
       setFoodBeingEaten(newFoodBeingEaten);
 
-      // Update food particles to show sucking animation
       setFoodParticles(prev =>
         prev.map(particle => {
           if (newFoodBeingEaten.has(particle.id)) {
@@ -1143,7 +1247,6 @@ const Game: React.FC = () => {
         })
       );
 
-      // After sucking animation completes, mark food as eaten
       setTimeout(() => {
         console.log('Sucking animation complete, marking food as eaten');
         setFoodParticles(prev =>
@@ -1157,9 +1260,22 @@ const Game: React.FC = () => {
         );
         setFoodBeingEaten(new Set());
         setSquidExpression('content');
+
+        // Update satiety for each food particle eaten using the new progressive gain
+        const satietyGain = (() => {
+          if (satiety.level <= 3) return 20;
+          if (satiety.level <= 6) return 15;
+          if (satiety.level <= 8) return 10;
+          return 8;
+        })();
+
+        setSatiety(prev => ({
+          ...prev,
+          current: Math.min(prev.current + (satietyGain * availableFood.length), prev.max)
+        }));
       }, ANIMATION.EATING_DURATION);
     }
-  }, [clickCount, foodParticles, foodBeingEaten, squidExpression]);
+  }, [clickCount, foodParticles, foodBeingEaten, squidExpression, satiety.level]);
 
   // Calculate morph progress
   useEffect(() => {
@@ -1189,7 +1305,7 @@ const Game: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Update handleClick to include sucking behavior check
+  // Handle click event
   const handleClick = (e: React.MouseEvent) => {
     // Check if click is within developer controls or store
     const target = e.target as HTMLElement;
@@ -1245,14 +1361,10 @@ const Game: React.FC = () => {
 
       // Add food particle if we're in squid phase and haven't reached the limit
       if (clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION) {
-        console.log('Creating new food particle at click position:', x, y);
+        // Only generate one food particle per physical click
         setFoodParticles(prev => {
           const currentParticles = prev.filter(p => !p.eaten);
-          console.log('Current uneaten particles:', currentParticles.length);
-          console.log('Max particles allowed:', FOOD.MAX_PARTICLES);
-
           if (currentParticles.length >= FOOD.MAX_PARTICLES) {
-            console.log('Max particles reached, not creating new particle');
             return prev;
           }
 
@@ -1267,7 +1379,6 @@ const Game: React.FC = () => {
             opacity: 1,
             createdAt: Date.now()
           };
-          console.log('Created new food particle:', newParticle);
           return [...prev, newParticle];
         });
 
@@ -1719,6 +1830,8 @@ const Game: React.FC = () => {
             isHappy={squidMood.isHappy}
             expression={squidExpression}
             scale={squidFormOpacity * 0.7}
+            satiety={satiety}
+            onSatietyLevelUp={handleSatietyLevelUp}
           />
         </div>
       )}

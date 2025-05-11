@@ -67,3 +67,10 @@ export const SPRING = {
     STIFFNESS: 0.18,          // How rigid the spring movement is
     DAMPING: 0.8,             // How quickly spring movement settles
 } as const;
+
+// Cell to Squid transition thresholds
+export const CELL_TO_SQUID_THRESHOLDS = {
+    START: 1000,    // Start transition at 1000 clicks
+    END: 5000,      // Complete transition at 5000 clicks (increased from 2000)
+    TRANSITION_DURATION: 2000 // 2 seconds for transition animation
+};
