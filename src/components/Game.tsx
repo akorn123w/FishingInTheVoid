@@ -665,6 +665,23 @@ const Game: React.FC = () => {
     }
   }>({});
 
+  // Add new state for dev tools visibility
+  const [showDevTools, setShowDevTools] = useState(false);
+
+  // Add keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl + Shift + D
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); // Prevent default browser behavior
+        setShowDevTools(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Add function to update object logs
   const updateObjectLog = (objectId: string, message: string, category: 'squid' | 'foodParticles') => {
     if (FEATURE_FLAGS.DEVELOPMENT && loggingPreferences[category]) {
@@ -1555,7 +1572,7 @@ const Game: React.FC = () => {
       onClick={handleClick}
     >
       {/* Developer Controls - Fixed positioning */}
-      {FEATURE_FLAGS.DEVELOPMENT && (
+      {FEATURE_FLAGS.DEVELOPMENT && showDevTools && (
         <div
           data-dev-area="true"
           style={{
@@ -1600,6 +1617,62 @@ const Game: React.FC = () => {
           >
             Click Multiplier: x{clickMultiplier.toLocaleString()}
           </button>
+
+          {/* Click Reduction Controls */}
+          <div
+            data-dev-area="true"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              padding: '10px',
+              background: 'rgba(0, 0, 0, 0.5)',
+              borderRadius: '5px',
+            }}
+          >
+            <div
+              data-dev-area="true"
+              style={{
+                color: '#4a90e2',
+                fontSize: '14px',
+                marginBottom: '5px',
+              }}
+            >
+              Reduce Clicks
+            </div>
+            <div
+              data-dev-area="true"
+              style={{
+                display: 'flex',
+                gap: '5px',
+                flexWrap: 'wrap',
+              }}
+            >
+              {[100, 1000, 10000, 100000].map((amount) => (
+                <button
+                  key={amount}
+                  data-dev-area="true"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setClickCount(prev => Math.max(0, prev - amount));
+                  }}
+                  style={{
+                    padding: '5px 10px',
+                    fontSize: '12px',
+                    color: '#ffffff',
+                    background: 'rgba(74, 144, 226, 0.3)',
+                    border: '1px solid #4a90e2',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease-out',
+                    userSelect: 'none',
+                  }}
+                >
+                  -{amount.toLocaleString()}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Logging Control Checkboxes */}
           <div
