@@ -1582,7 +1582,7 @@ const Game: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: '10px',
-            zIndex: 1000,
+            zIndex: 9999,
             background: 'rgba(0, 0, 0, 0.7)',
             padding: '15px',
             borderRadius: '8px',
