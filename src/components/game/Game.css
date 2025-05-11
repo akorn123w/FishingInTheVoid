@@ -1,0 +1,165 @@
+.game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #000;
+}
+
+.game-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.click-counter {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 15px;
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 1.1em;
+    text-shadow: 0 0 10px rgba(74, 144, 226, 0.5);
+    border: 1px solid rgba(74, 144, 226, 0.3);
+    box-shadow: 0 0 10px rgba(74, 144, 226, 0.2);
+    z-index: 1001;
+}
+
+.dev-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.dev-button {
+    padding: 10px 20px;
+    font-size: 16px;
+    color: #999999;
+    background: transparent;
+    border: 2px solid #4a90e2;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s ease-out;
+    user-select: none;
+}
+
+.dev-button.active {
+    color: #ffffff;
+    background: #4a90e2;
+}
+
+.dev-logs {
+    background: rgba(0, 0, 0, 0.8);
+    padding: 10px;
+    border-radius: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+    color: #4a90e2;
+    border: 1px solid rgba(74, 144, 226, 0.3);
+    width: 300px;
+}
+
+.dev-log-entry {
+    margin-bottom: 4px;
+}
+
+.store-area {
+    position: relative;
+    z-index: 1000;
+}
+
+/* Floating Number Styles */
+.floating-number {
+    position: absolute;
+    color: #4a90e2;
+    font-size: 1.2em;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(74, 144, 226, 0.5);
+    pointer-events: none;
+    z-index: 1002;
+}
+
+/* Squid Form Styles */
+.squid-form {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    pointer-events: none;
+    z-index: 1002;
+}
+
+.squid-body {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #4a90e2 0%, #2a70c2 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 20px rgba(74, 144, 226, 0.5);
+}
+
+.squid-tentacles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.tentacle {
+    position: absolute;
+    width: 4px;
+    height: 20px;
+    background: #4a90e2;
+    top: 50%;
+    left: 50%;
+    transform-origin: 0 0;
+    border-radius: 2px;
+}
+
+/* Background Cell Styles */
+.background-cell {
+    position: absolute;
+    background: rgba(74, 144, 226, 0.1);
+    border: 1px solid rgba(74, 144, 226, 0.2);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Food Particle Styles */
+.food-particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1002;
+    box-shadow: 0 0 10px rgba(74, 144, 226, 0.3);
+}
+
+/* Morphing Cell Styles */
+.morphing-cell {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(74, 144, 226, 0.1);
+    border: 1px solid rgba(74, 144, 226, 0.2);
+    pointer-events: none;
+    z-index: 1;
+    transition: all 0.3s ease-out;
+}
+
+.morphing-cell-inner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 50%;
+    height: 50%;
+    background: rgba(74, 144, 226, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}

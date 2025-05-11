@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StoreItem, ItemRarity } from '../../constants/storeItems';
 import { handlePurchase } from './storeLogic';
+import './Store.css';
 
 interface StoreProps {
     items: StoreItem[];
@@ -126,118 +127,57 @@ export const Store: React.FC<StoreProps> = ({
     }
 
     return (
-        <div style={{
-            position: 'fixed',
-            top: '70px',
-            right: '20px',
-            padding: '10px',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            borderRadius: '10px',
-            color: 'white',
-            width: expandedItem ? '300px' : '150px',
-            maxHeight: 'calc(100vh - 90px)',
-            overflowY: 'auto',
-            zIndex: 1000,
-            transition: 'width 0.3s ease'
-        }}>
-            <h2 style={{ textAlign: 'center', marginBottom: '10px', fontSize: '1.1em' }}>Store</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className={`store-container ${expandedItem ? 'expanded' : ''}`}>
+            <h2 className="store-title">Store</h2>
+            <div className="store-items">
                 {availableItems.map(item => {
                     const currentLevel = purchasedItems[item.id] || 0;
                     const nextLevel = item.levels[currentLevel];
                     const canAfford = clickCount >= nextLevel.cost;
                     const isMaxLevel = currentLevel >= item.levels.length;
-                    const rarityStyles = getRarityStyles(nextLevel.rarity, canAfford);
                     const isExpanded = expandedItem === item.id;
 
                     return (
                         <div
                             key={item.id}
                             onClick={() => !isMaxLevel && canAfford && onPurchase(item)}
-                            style={{
-                                padding: isExpanded ? '10px' : '8px',
-                                border: `1px solid ${rarityStyles.borderColor}`,
-                                borderRadius: '5px',
-                                background: rarityStyles.background,
-                                color: rarityStyles.textColor,
-                                position: 'relative',
-                                overflow: 'hidden',
-                                transition: 'all 0.3s ease',
-                                cursor: canAfford && !isMaxLevel ? 'pointer' : 'not-allowed',
-                                opacity: canAfford ? 1 : 0.7,
-                                transform: isExpanded ? 'scale(1.02)' : 'scale(1)',
-                                boxShadow: isExpanded ? `0 0 10px ${rarityStyles.borderColor}33` : 'none'
-                            }}
+                            className={`store-item ${nextLevel.rarity} ${isExpanded ? 'expanded' : ''} ${(!canAfford || isMaxLevel) ? 'disabled' : ''}`}
                             onMouseEnter={() => setExpandedItem(item.id)}
                             onMouseLeave={() => setExpandedItem(null)}
                         >
                             {/* Shine effect */}
-                            <div style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: `${shinePosition}%`,
-                                width: '300%',
-                                height: '100%',
-                                background: `linear-gradient(90deg,
-                                    transparent 0%,
-                                    ${rarityStyles.borderColor}22 15%,
-                                    ${rarityStyles.borderColor}22 35%,
-                                    transparent 50%)`,
-                                transform: 'translateX(-50%)',
-                                pointerEvents: 'none',
-                                transition: 'left 0.1s linear'
-                            }} />
+                            <div
+                                className="store-item-shine"
+                                style={{
+                                    left: `${shinePosition}%`,
+                                    background: `linear-gradient(90deg,
+                                        transparent 0%,
+                                        ${getRarityColor(nextLevel.rarity)}22 15%,
+                                        ${getRarityColor(nextLevel.rarity)}22 35%,
+                                        transparent 50%)`
+                                }}
+                            />
 
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '10px'
-                            }}>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                    }}>
-                                        <h3 style={{
-                                            margin: 0,
-                                            fontSize: '0.9em',
-                                            color: rarityStyles.textColor
-                                        }}>
+                            <div className="store-item-content">
+                                <div className="store-item-info">
+                                    <div className="store-item-header">
+                                        <h3 className="store-item-name">
                                             {item.name}
                                         </h3>
                                         {isExpanded && (
-                                            <span style={{
-                                                fontSize: '0.8em',
-                                                color: rarityStyles.textColor
-                                            }}>
+                                            <span className="store-item-level">
                                                 Lvl {currentLevel + 1}/{item.levels.length}
                                             </span>
                                         )}
                                     </div>
                                     {isExpanded && (
-                                        <div style={{
-                                            fontSize: '0.8em',
-                                            color: rarityStyles.textColor,
-                                            opacity: 0.8,
-                                            marginTop: '4px'
-                                        }}>
+                                        <div className="store-item-effect">
                                             {nextLevel.effect.type === 'additive' ? '+' : 'x'}{nextLevel.effect.value}
                                         </div>
                                     )}
                                 </div>
                                 {isExpanded && (
-                                    <div style={{
-                                        fontSize: '0.9em',
-                                        color: canAfford ? rarityStyles.textColor : '#666666',
-                                        padding: '6px 12px',
-                                        background: canAfford ? rarityStyles.gradient : 'rgba(102, 102, 102, 0.2)',
-                                        border: `1px solid ${canAfford ? rarityStyles.borderColor : '#666666'}`,
-                                        borderRadius: '4px',
-                                        minWidth: '80px',
-                                        textAlign: 'center'
-                                    }}>
+                                    <div className="store-item-cost">
                                         {isMaxLevel ? 'Max' : `${nextLevel.cost} clicks`}
                                     </div>
                                 )}
@@ -248,4 +188,16 @@ export const Store: React.FC<StoreProps> = ({
             </div>
         </div>
     );
+};
+
+// Helper function to get rarity color
+const getRarityColor = (rarity: ItemRarity): string => {
+    switch (rarity) {
+        case 'common': return '#ffffff';
+        case 'uncommon': return '#1eff00';
+        case 'rare': return '#0070dd';
+        case 'epic': return '#a335ee';
+        case 'legendary': return '#ff8000';
+        default: return '#ffffff';
+    }
 };
