@@ -1,17 +1,6 @@
 import { AbstractHandler, HandlerState, HandlerCallbacks } from './BaseHandler';
 import { PARTICLES } from '../constants/gameConstants';
-
-export interface Particle {
-    id: number;
-    x: number;
-    y: number;
-    size: number;
-    speed: number;
-    angle: number;
-    vx?: number;
-    vy?: number;
-    pushTime?: number;
-}
+import { Particle } from '@/types/game';
 
 export interface ParticleHandlerState extends HandlerState {
     particles: Particle[];

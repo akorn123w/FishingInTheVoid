@@ -13,9 +13,12 @@ import { FEATURE_FLAGS } from '../constants/featureFlags';
 import { Store } from './Store/Store';
 import { StoreItem, STORE_ITEMS } from '../constants/storeItems';
 import { StoreHandler } from '../handlers/StoreHandler';
-import { ParticleHandler, Particle } from '../handlers/ParticleHandler';
+import { ParticleHandler } from '../handlers/ParticleHandler';
 import { handlePurchase } from './Store/storeLogic';
 import { SquidExpression } from '../types/game';
+import BackgroundCell from './BackgroundCell';
+import FloatingNumber from './FloatingNumber';
+import FoodParticle from './FoodParticle';
 
 interface Position {
   x: number;
@@ -214,89 +217,6 @@ const CellClusterVisual: React.FC = () => {
           <stop offset="100%" stopColor="#2a4a8a" />
         </radialGradient>
       </defs>
-    </svg>
-  );
-};
-
-// New component for different cell types
-const BackgroundCell: React.FC<{
-  type: number;
-  x: number;
-  y: number;
-  rotation: number;
-  style?: React.CSSProperties;
-}> = ({ type, x, y, rotation, style }) => {
-  const getCellColor = () => {
-    switch (type) {
-      case 1: return '#ff6b6b'; // Reddish
-      case 2: return '#4ecdc4'; // Teal
-      case 3: return '#ffe66d'; // Yellow
-      case 4: return '#95e1d3'; // Mint
-      default: return '#ff6b6b';
-    }
-  };
-
-  const getCellShape = () => {
-    switch (type) {
-      case 1:
-        return (
-          <path
-            d="M50 20 L80 50 L50 80 L20 50 Z"
-            fill={getCellColor()}
-            stroke="#ffffff33"
-            strokeWidth="1"
-          />
-        );
-      case 2:
-        return (
-          <path
-            d="M50 20 Q80 50 50 80 Q20 50 50 20"
-            fill={getCellColor()}
-            stroke="#ffffff33"
-            strokeWidth="1"
-          />
-        );
-      case 3:
-        return (
-          <path
-            d="M50 20 L65 35 L80 20 L65 5 L50 20"
-            fill={getCellColor()}
-            stroke="#ffffff33"
-            strokeWidth="1"
-          />
-        );
-      case 4:
-        return (
-          <circle
-            cx="50"
-            cy="50"
-            r="30"
-            fill={getCellColor()}
-            stroke="#ffffff33"
-            strokeWidth="1"
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <svg
-      width="60"
-      height="60"
-      viewBox="0 0 100 100"
-      style={{
-        position: 'absolute',
-        left: `${x}%`,
-        top: `${y}%`,
-        transform: `rotate(${rotation}rad)`,
-        opacity: 0.6,
-        filter: 'blur(1px)',
-        ...style
-      }}
-    >
-      {getCellShape()}
     </svg>
   );
 };
@@ -521,168 +441,6 @@ const SquidForm: React.FC<{
   );
 };
 
-const FloatingNumber: React.FC<{ number: FloatingNumber }> = ({ number }) => {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: `${number.x}%`,
-        top: `${number.y}%`,
-        color: '#4a90e2',
-        fontSize: '24px',
-        fontWeight: 'bold',
-        textShadow: '0 0 2px #000, 0 0 2px #000, 0 0 2px #000, 0 0 2px #000, 0 0 10px rgba(74, 144, 226, 0.5)',
-        opacity: number.opacity,
-        transform: 'translate(-50%, -50%)',
-        pointerEvents: 'none',
-        transition: 'all 0.5s ease-out',
-      }}
-    >
-      +{number.value}
-    </div>
-  );
-};
-
-const FoodParticle: React.FC<{ particle: FoodParticle }> = ({ particle }) => {
-  const [spiralProgress, setSpiralProgress] = useState(0);
-  const [spiralAngle, setSpiralAngle] = useState(0);
-  const animationStarted = useRef(false);
-  const particleRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (particle.isBeingEaten && !animationStarted.current) {
-      animationStarted.current = true;
-      console.log(`Starting spiral animation for particle ${particle.id}`);
-
-      // Get the game container position for target calculations
-      const gameRect = document.querySelector('[data-game-container="true"]')?.getBoundingClientRect();
-      if (!gameRect) {
-        console.error('Could not get game container position for animation');
-        return;
-      }
-
-      // Use the initial click position (stored in particle.x and particle.y) for the start
-      const startXPixels = (particle.x / 100) * gameRect.width;
-      const startYPixels = (particle.y / 100) * gameRect.height;
-
-      // Calculate target position (center of game container)
-      const targetXPixels = gameRect.width / 2;
-      const targetYPixels = gameRect.height / 2;
-
-      // Calculate delay based on distance in pixels
-      const dx = startXPixels - targetXPixels;
-      const dy = startYPixels - targetYPixels;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const maxDelay = 500;
-      const delay = Math.min((distance / 200) * maxDelay, maxDelay);
-
-      console.log(`Particle ${particle.id} starting animation with ${delay}ms delay`);
-
-      setTimeout(() => {
-        const startTime = Date.now();
-        const duration = ANIMATION.EATING_DURATION;
-
-        const animate = () => {
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-
-          // Calculate spiral path in pixel coordinates
-          const angle = progress * Math.PI * 4; // Two full rotations
-          const radius = (1 - progress) * (gameRect.width * 0.15); // 15% of game width
-
-          // Interpolate between start and target positions in pixels
-          const x = startXPixels + (targetXPixels - startXPixels) * progress + Math.cos(angle) * radius;
-          const y = startYPixels + (targetYPixels - startYPixels) * progress + Math.sin(angle) * radius;
-
-          // Convert back to percentages for rendering
-          const xPercent = (x / gameRect.width) * 100;
-          const yPercent = (y / gameRect.height) * 100;
-
-          setSpiralProgress(progress);
-          setSpiralAngle(angle);
-
-          if (progress < 1) {
-            requestAnimationFrame(animate);
-          } else {
-            console.log(`Finished spiral animation for particle ${particle.id}`);
-          }
-        };
-
-        requestAnimationFrame(animate);
-      }, delay);
-    }
-  }, [particle.isBeingEaten, particle.id, particle.x, particle.y]);
-
-  const getParticleColor = () => {
-    switch (particle.type) {
-      case 1: return '#ff6b6b';
-      case 2: return '#4ecdc4';
-      case 3: return '#ffe66d';
-      case 4: return '#95e1d3';
-      default: return '#ff6b6b';
-    }
-  };
-
-  const getParticleStyle = (): React.CSSProperties => {
-    if (particle.isBeingEaten) {
-      const angle = spiralAngle;
-      const radius = (1 - spiralProgress) * 15;
-
-      // Get the game container for calculations
-      const gameRect = document.querySelector('[data-game-container="true"]')?.getBoundingClientRect();
-      if (!gameRect) return {};
-
-      // Use the initial click position for the start
-      const startXPixels = (particle.x / 100) * gameRect.width;
-      const startYPixels = (particle.y / 100) * gameRect.height;
-
-      // Calculate target position (center of game container)
-      const targetXPixels = gameRect.width / 2;
-      const targetYPixels = gameRect.height / 2;
-
-      // Calculate position in pixels
-      const x = startXPixels + (targetXPixels - startXPixels) * spiralProgress + Math.cos(angle) * radius;
-      const y = startYPixels + (targetYPixels - startYPixels) * spiralProgress + Math.sin(angle) * radius;
-
-      // Convert back to percentages for rendering
-      const xPercent = (x / gameRect.width) * 100;
-      const yPercent = (y / gameRect.height) * 100;
-
-      return {
-        position: 'absolute' as const,
-        left: `${xPercent}%`,
-        top: `${yPercent}%`,
-        width: `${particle.size * (1 - spiralProgress)}px`,
-        height: `${particle.size * (1 - spiralProgress)}px`,
-        background: getParticleColor(),
-        borderRadius: '50%',
-        opacity: particle.eaten ? 0 : particle.opacity * (1 - spiralProgress),
-        transform: 'translate(-50%, -50%)',
-        transition: 'none',
-        filter: 'blur(1px)',
-        boxShadow: '0 0 10px currentColor',
-      };
-    }
-
-    return {
-      position: 'absolute' as const,
-      left: `${particle.x}%`,
-      top: `${particle.y}%`,
-      width: `${particle.size}px`,
-      height: `${particle.size}px`,
-      background: getParticleColor(),
-      borderRadius: '50%',
-      opacity: particle.eaten ? 0 : particle.opacity,
-      transform: 'translate(-50%, -50%)',
-      transition: 'opacity 0.3s ease-out',
-      filter: 'blur(1px)',
-      boxShadow: '0 0 10px currentColor',
-    };
-  };
-
-  return <div ref={particleRef} style={getParticleStyle()} />;
-};
-
 const MorphingCell: React.FC<{ progress: number }> = ({ progress }) => {
   return (
     <svg
@@ -838,7 +596,7 @@ const Game: React.FC = () => {
   const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumber[]>([]);
   const nextNumberId = useRef(0);
 
-  const [foodParticles, setFoodParticles] = useState<FoodParticle[]>([]);
+  const [foodParticles, setFoodParticles] = useState<Particle[]>([]);
   const [targetFood, setTargetFood] = useState<FoodParticle | null>(null);
   const nextFoodId = useRef(0);
 
