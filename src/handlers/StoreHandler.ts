@@ -46,59 +46,39 @@ export class StoreHandler extends AbstractHandler {
         }
 
         const state = this.getState() as StoreHandlerState;
-
-        // Calculate the actual cost based on current level
         const currentLevel = state.purchasedItems[item.id] || 0;
-        const actualCost = item.cost + (item.costPerLevel ? item.costPerLevel * currentLevel : 0);
+        const nextLevel = item.levels[currentLevel];
 
-        if (state.clickCount >= actualCost) {
-            this.storeCallbacks.setClickCount(prev => prev - actualCost);
-
-            // Update purchased items
-            this.storeCallbacks.setPurchasedItems(prev => ({
-                ...prev,
-                [item.id]: (prev[item.id] || 0) + 1
-            }));
-
-            // Apply item effects based on type
-            switch (item.type) {
-                case 'additive':
-                    this.storeCallbacks.setClickBonus(prev => prev + item.effect.value);
-                    break;
-                case 'multiplier':
-                    this.storeCallbacks.setClickMultiplier(prev => prev * item.effect.value);
-                    break;
-                case 'boost':
-                    if (item.effect.type === 'temporary_multiplier') {
-                        // Clear any existing temporary multiplier
-                        if (this.temporaryMultiplierTimeout) {
-                            clearTimeout(this.temporaryMultiplierTimeout);
-                        }
-                        this.storeCallbacks.setTemporaryMultiplier(item.effect.value);
-                        const timeout = setTimeout(() => {
-                            this.storeCallbacks.setTemporaryMultiplier(1);
-                        }, 30000); // 30 seconds
-                        this.storeCallbacks.setTemporaryMultiplierTimeout(timeout);
-                    }
-                    break;
-                case 'ability':
-                    // Handle ability effects
-                    switch (item.effect.type) {
-                        case 'division_frequency':
-                            // Handle cell division frequency boost
-                            break;
-                        case 'squid_speed':
-                            // Handle squid speed boost
-                            break;
-                    }
-                    break;
-            }
-
-            // Update handler state
-            this.updateState({
-                timestamp: Date.now()
-            });
+        if (!nextLevel) {
+            this.callbacks.onError(new Error('Item is at max level'));
+            return;
         }
+
+        if (state.clickCount < nextLevel.cost) {
+            this.callbacks.onError(new Error('Not enough clicks'));
+            return;
+        }
+
+        // Update click count
+        this.storeCallbacks.setClickCount(prev => prev - nextLevel.cost);
+
+        // Update purchased items
+        this.storeCallbacks.setPurchasedItems(prev => ({
+            ...prev,
+            [item.id]: currentLevel + 1
+        }));
+
+        // Apply effect based on type
+        if (nextLevel.effect.type === 'additive') {
+            this.storeCallbacks.setClickBonus(prev => prev + nextLevel.effect.value);
+        } else if (nextLevel.effect.type === 'multiplicative') {
+            this.storeCallbacks.setClickMultiplier(prev => prev * nextLevel.effect.value);
+        }
+
+        // Update handler state
+        this.updateState({
+            timestamp: Date.now()
+        });
     }
 
     cleanup(): void {

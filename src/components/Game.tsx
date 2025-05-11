@@ -10,8 +10,8 @@ import {
   SPRING,
 } from '../constants/gameConstants';
 import { FEATURE_FLAGS } from '../constants/featureFlags';
-import Store from './Store/Store';
-import { StoreItem } from '../constants/storeItems';
+import { Store } from './Store/Store';
+import { StoreItem, STORE_ITEMS } from '../constants/storeItems';
 import { StoreHandler } from '../handlers/StoreHandler';
 import { ParticleHandler, Particle } from '../handlers/ParticleHandler';
 import { handlePurchase } from './Store/storeLogic';
@@ -920,11 +920,13 @@ const Game: React.FC = () => {
   useEffect(() => {
     storeHandlerRef.current = new StoreHandler(
       {
+        isActive: true,
         clickCount,
         clickBonus,
         clickMultiplier,
         temporaryMultiplier,
-        purchasedItems
+        purchasedItems,
+        timestamp: Date.now()
       },
       {
         setClickCount,
@@ -953,11 +955,13 @@ const Game: React.FC = () => {
   useEffect(() => {
     if (storeHandlerRef.current) {
       storeHandlerRef.current.updateHandlerState({
+        isActive: true,
         clickCount,
         clickBonus,
         clickMultiplier,
         temporaryMultiplier,
-        purchasedItems
+        purchasedItems,
+        timestamp: Date.now()
       });
     }
   }, [clickCount, clickBonus, clickMultiplier, temporaryMultiplier, purchasedItems]);
@@ -1818,12 +1822,35 @@ const Game: React.FC = () => {
         </div>
       )}
 
+      {/* Click counter */}
+      <div
+        style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '10px 15px',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          borderRadius: '10px',
+          color: '#ffffff',
+          fontSize: '1.1em',
+          textShadow: '0 0 10px rgba(74, 144, 226, 0.5)',
+          border: '1px solid rgba(74, 144, 226, 0.3)',
+          boxShadow: '0 0 10px rgba(74, 144, 226, 0.2)',
+          zIndex: 1001 // Ensure it's above the store
+        }}
+      >
+        Clicks: {clickCount}
+      </div>
+
       {/* Store - will only render when there are available items */}
       <div data-store-area="true">
         <Store
+          items={STORE_ITEMS}
           clickCount={clickCount}
-          onPurchase={handleStorePurchase}
+          clickBonus={clickBonus}
+          clickMultiplier={clickMultiplier}
           purchasedItems={purchasedItems}
+          onPurchase={handleStorePurchase}
         />
       </div>
 
@@ -1910,20 +1937,6 @@ const Game: React.FC = () => {
         }}
       >
         {renderCellGroup()}
-      </div>
-
-      {/* Click counter */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          color: '#ffffff',
-          fontSize: '24px',
-          textShadow: '0 0 10px rgba(74, 144, 226, 0.5)',
-        }}
-      >
-        Clicks: {clickCount}
       </div>
 
       {/* SquidForm - single source of truth */}
