@@ -1,6 +1,7 @@
 import React from 'react';
 import { FoodParticleProps } from './types';
-import { ANIMATION } from '../../constants/gameConstants';
+import { ANIMATION } from '@/constants/gameConstants';
+import { FOOD_PARTICLE } from './constants';
 
 const FoodParticle: React.FC<FoodParticleProps> = ({ particle }) => {
     const [swirlPhase, setSwirlPhase] = React.useState(0);
@@ -32,13 +33,7 @@ const FoodParticle: React.FC<FoodParticleProps> = ({ particle }) => {
     }, [particle.isBeingEaten, isBeingEaten]);
 
     const getParticleColor = () => {
-        switch (particle.type) {
-            case 1: return '#ff6b6b'; // Reddish
-            case 2: return '#4ecdc4'; // Teal
-            case 3: return '#ffe66d'; // Yellow
-            case 4: return '#95e1d3'; // Mint
-            default: return '#ff6b6b';
-        }
+        return FOOD_PARTICLE.COLORS[particle.type] || FOOD_PARTICLE.DEFAULT_COLOR;
     };
 
     // Calculate position with swirl effect
@@ -51,11 +46,7 @@ const FoodParticle: React.FC<FoodParticleProps> = ({ particle }) => {
         const progress = Math.min(elapsed / ANIMATION.EATING_SWIRL_DURATION, 1);
 
         // Calculate swirl radius that decreases over time
-        const swirlRadius = (1 - progress) * 50; // Max radius of 50px
-
-        // Calculate final position (squid's mouth)
-        const targetX = 50; // Center of the squid
-        const targetY = 60; // Mouth position
+        const swirlRadius = (1 - progress) * FOOD_PARTICLE.SWIRL_RADIUS;
 
         // Calculate current position with swirl
         const currentX = particle.x + Math.cos(swirlPhase) * swirlRadius;
@@ -63,8 +54,8 @@ const FoodParticle: React.FC<FoodParticleProps> = ({ particle }) => {
 
         // Interpolate between current position and target
         return {
-            x: currentX + (targetX - currentX) * progress,
-            y: currentY + (targetY - currentY) * progress
+            x: currentX + (FOOD_PARTICLE.TARGET_POSITION.x - currentX) * progress,
+            y: currentY + (FOOD_PARTICLE.TARGET_POSITION.y - currentY) * progress
         };
     };
 

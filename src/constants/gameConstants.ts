@@ -25,7 +25,6 @@ export const ANIMATION = {
     BLINK_DURATION: 100,       // How long squid blinks for
     BLINK_CHANCE: 0.1,         // Probability of squid blinking each check
     BLINK_CHECK_INTERVAL: 100, // How often to check for blinking
-    MOVEMENT_INTERVAL: 16,     // How often to update movement (60fps)
     PARTICLE_INTERVAL: 50,     // How often to update background particles
     FOOD_FADE_START: 5000,     // When food starts fading out
     FOOD_FADE_DURATION: 2000,  // How long food takes to fade out
@@ -36,16 +35,6 @@ export const ANIMATION = {
     EATING_SHAKE_INTENSITY: 0.1, // How much squid shakes while eating
 } as const;
 
-// Movement settings
-export const MOVEMENT = {
-    SQUID_SPEED: 0.5,          // How fast squid moves when active
-    SQUID_IDLE_SPEED: 0.3,     // How fast squid moves when idle
-    SQUID_VELOCITY_DAMPING: 0.9, // How quickly squid slows down
-    SQUID_VELOCITY_INFLUENCE: 0.1, // How much velocity affects movement
-    FOOD_DETECTION_RADIUS: 20,  // How close food needs to be to detect
-    CENTER_THRESHOLD: 2,       // How close to center is considered centered
-} as const;
-
 // Particle settings
 export const PARTICLES = {
     INITIAL_COUNT: 50,         // Number of background particles
@@ -53,7 +42,6 @@ export const PARTICLES = {
     MAX_SIZE: 4,              // Largest particle size
     MIN_SPEED: 0.1,           // Slowest particle speed
     MAX_SPEED: 0.3,           // Fastest particle speed
-    PUSH_DECAY: 0.92,         // How quickly particles slow down
 } as const;
 
 // Food settings

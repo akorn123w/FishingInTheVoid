@@ -117,9 +117,13 @@ export const Store: React.FC<StoreProps> = ({
     }, [clickCount, items]);
 
     // Filter items that are either currently unlocked or have been visible before
-    const availableItems = items.filter(item =>
-        visibleItems.has(item.id) || clickCount >= item.unlockAtClicks
-    );
+    // AND are not at max level
+    const availableItems = items.filter(item => {
+        const isVisible = visibleItems.has(item.id) || clickCount >= item.unlockAtClicks;
+        const currentLevel = purchasedItems[item.id] || 0;
+        const isMaxLevel = currentLevel >= item.levels.length;
+        return isVisible && !isMaxLevel;
+    });
 
     // Early return after all hooks are declared
     if (availableItems.length === 0) {
@@ -134,14 +138,13 @@ export const Store: React.FC<StoreProps> = ({
                     const currentLevel = purchasedItems[item.id] || 0;
                     const nextLevel = item.levels[currentLevel];
                     const canAfford = clickCount >= nextLevel.cost;
-                    const isMaxLevel = currentLevel >= item.levels.length;
                     const isExpanded = expandedItem === item.id;
 
                     return (
                         <div
                             key={item.id}
-                            onClick={() => !isMaxLevel && canAfford && onPurchase(item)}
-                            className={`store-item ${nextLevel.rarity} ${isExpanded ? 'expanded' : ''} ${(!canAfford || isMaxLevel) ? 'disabled' : ''}`}
+                            onClick={() => canAfford && onPurchase(item)}
+                            className={`store-item ${nextLevel.rarity} ${isExpanded ? 'expanded' : ''} ${!canAfford ? 'disabled' : ''}`}
                             onMouseEnter={() => setExpandedItem(item.id)}
                             onMouseLeave={() => setExpandedItem(null)}
                         >
@@ -157,31 +160,28 @@ export const Store: React.FC<StoreProps> = ({
                                         transparent 50%)`
                                 }}
                             />
-
-                            <div className="store-item-content">
-                                <div className="store-item-info">
-                                    <div className="store-item-header">
-                                        <h3 className="store-item-name">
-                                            {item.name}
-                                        </h3>
-                                        {isExpanded && (
-                                            <span className="store-item-level">
-                                                Lvl {currentLevel + 1}/{item.levels.length}
-                                            </span>
-                                        )}
-                                    </div>
+                            <div className="store-item-info">
+                                <div className="store-item-header">
+                                    <h3 className="store-item-name">
+                                        {item.name}
+                                    </h3>
                                     {isExpanded && (
-                                        <div className="store-item-effect">
-                                            {nextLevel.effect.type === 'additive' ? '+' : 'x'}{nextLevel.effect.value}
-                                        </div>
+                                        <span className="store-item-level">
+                                            Lvl {currentLevel + 1}/{item.levels.length}
+                                        </span>
                                     )}
                                 </div>
                                 {isExpanded && (
-                                    <div className="store-item-cost">
-                                        {isMaxLevel ? 'Max' : `${nextLevel.cost} clicks`}
+                                    <div className="store-item-effect">
+                                        {nextLevel.effect.type === 'additive' ? '+' : 'x'}{nextLevel.effect.value}
                                     </div>
                                 )}
                             </div>
+                            {isExpanded && (
+                                <div className="store-item-cost">
+                                    {`${nextLevel.cost} clicks`}
+                                </div>
+                            )}
                         </div>
                     );
                 })}

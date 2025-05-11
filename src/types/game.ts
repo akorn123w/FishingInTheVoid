@@ -10,14 +10,19 @@ export interface Particle {
     size: number;
     speed: number;
     angle: number;
-    vx: number;
-    vy: number;
-    pushTime: number;
+    opacity: number;
+    createdAt: number;
     eaten?: boolean;
     isBeingEaten?: boolean;
     type?: number;
-    createdAt?: number;
-    opacity?: number;
+}
+
+export interface FoodParticle extends Particle {
+    type: number;
+    eaten: boolean;
+    isBeingEaten: boolean;
+    opacity: number;
+    createdAt: number;
 }
 
 export interface FloatingNumber {
@@ -38,4 +43,4 @@ export interface Cell {
     style?: React.CSSProperties;
 }
 
-export type SquidExpression = 'content' | 'sucking';
+export type SquidExpression = 'content' | 'sucking' | 'blinking';

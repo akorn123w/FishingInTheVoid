@@ -65,8 +65,8 @@ export const STORE_ITEMS: StoreItem[] = [
         levels: createLevels(
             300,   // Base cost
             2,     // Cost multiplier per level
-            2,     // Base effect (multiplier)
-            1,     // Effect multiplier per level
+            1.5,   // Base effect (multiplier) - reduced from 2
+            0.5,   // Effect multiplier per level - reduced from 1
             3,     // Max level
             ['uncommon', 'rare', 'epic'] // Rarity progression
         ).map(level => ({

@@ -18,10 +18,11 @@ const FloatingNumber: React.FC<FloatingNumberProps> = ({ number }) => {
                 opacity: opacity * number.opacity,
                 transform: 'translate(-50%, -50%)',
                 pointerEvents: 'none',
-                transition: 'all 0.5s ease-out',
+                transition: 'opacity 0.1s ease-out',
+                willChange: 'transform, opacity',
             }}
         >
-            +{number.value}
+            +{Math.round(number.value)}
         </div>
     );
 };

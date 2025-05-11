@@ -1,0 +1,82 @@
+.purchased-items-container {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 10px;
+    color: white;
+    width: 200px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.purchased-items-title {
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+    color: #4a90e2;
+}
+
+.purchased-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.purchased-item {
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 0.9em;
+}
+
+.purchased-item.max-level {
+    opacity: 0.7;
+}
+
+.purchased-item-name {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.purchased-item-level {
+    font-size: 0.8em;
+    opacity: 0.8;
+}
+
+.purchased-item-effect {
+    font-size: 0.8em;
+    margin-top: 4px;
+}
+
+/* Rarity styles */
+.purchased-item.common {
+    border: 1px solid #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.purchased-item.uncommon {
+    border: 1px solid #1eff00;
+    background: rgba(30, 255, 0, 0.1);
+    color: #1eff00;
+}
+
+.purchased-item.rare {
+    border: 1px solid #0070dd;
+    background: rgba(0, 112, 221, 0.1);
+    color: #0070dd;
+}
+
+.purchased-item.epic {
+    border: 1px solid #a335ee;
+    background: rgba(163, 53, 238, 0.1);
+    color: #a335ee;
+}
+
+.purchased-item.legendary {
+    border: 1px solid #ff8000;
+    background: rgba(255, 128, 0, 0.1);
+    color: #ff8000;
+}

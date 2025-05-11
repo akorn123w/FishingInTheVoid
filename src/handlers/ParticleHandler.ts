@@ -38,47 +38,65 @@ export class ParticleHandler extends AbstractHandler {
             this.callbacks.onError(new Error('Particle handler is not active'));
             return;
         }
+        // No specific event handling needed for particles
+    }
 
+    private updateParticles() {
+        const now = Date.now();
+        const deltaTime = now - this.state.lastUpdateTime;
+
+        const updatedParticles = this.state.particles.map(particle => {
+            // Update position based on angle and speed
+            const newX = particle.x + Math.cos(particle.angle) * particle.speed * deltaTime;
+            const newY = particle.y + Math.sin(particle.angle) * particle.speed * deltaTime;
+
+            // Wrap around screen edges
+            const wrappedX = ((newX % 100) + 100) % 100;
+            const wrappedY = ((newY % 100) + 100) % 100;
+
+            return {
+                ...particle,
+                x: wrappedX,
+                y: wrappedY
+            };
+        });
+
+        this.state = {
+            ...this.state,
+            particles: updatedParticles,
+            lastUpdateTime: now
+        };
+
+        this.particleCallbacks.onParticleUpdate(updatedParticles);
+    }
+
+    private animate() {
+        if (!this.state.isAnimating) return;
+
+        this.updateParticles();
+        this.animationFrameId = requestAnimationFrame(() => this.animate());
+    }
+
+    startAnimation(): void {
+        if (!this.state.isAnimating) {
+            this.state = {
+                ...this.state,
+                isAnimating: true
+            };
+            this.animate();
+        }
+    }
+
+    stopAnimation(): void {
         if (this.state.isAnimating) {
-            const currentTime = Date.now();
-            const deltaTime = currentTime - this.state.lastUpdateTime;
-
-            const updatedParticles = this.state.particles.map(particle => {
-                // If being pushed, animate velocity
-                if (particle.pushTime && particle.pushTime > 0) {
-                    // Decay push over time
-                    const decay = PARTICLES.PUSH_DECAY;
-                    const vx = (particle.vx || 0) * decay;
-                    const vy = (particle.vy || 0) * decay;
-                    const pushTime = particle.pushTime - 1;
-
-                    return {
-                        ...particle,
-                        x: (particle.x + vx + 100) % 100,
-                        y: (particle.y + vy + 100) % 100,
-                        vx,
-                        vy,
-                        pushTime: pushTime > 0 ? pushTime : 0,
-                    };
-                } else {
-                    // Normal floating
-                    return {
-                        ...particle,
-                        x: (particle.x + Math.cos(particle.angle) * particle.speed + 100) % 100,
-                        y: (particle.y + Math.sin(particle.angle) * particle.speed + 100) % 100,
-                        angle: particle.angle + (Math.random() - 0.5) * 0.1,
-                        vx: 0,
-                        vy: 0,
-                        pushTime: 0,
-                    };
-                }
-            });
-
-            this.updateState({
-                particles: updatedParticles,
-                lastUpdateTime: currentTime
-            } as Partial<ParticleHandlerState>);
-            this.particleCallbacks.onParticleUpdate(updatedParticles);
+            this.state = {
+                ...this.state,
+                isAnimating: false
+            };
+            if (this.animationFrameId !== null) {
+                cancelAnimationFrame(this.animationFrameId);
+                this.animationFrameId = null;
+            }
         }
     }
 
@@ -93,40 +111,23 @@ export class ParticleHandler extends AbstractHandler {
             size: Math.random() * (PARTICLES.MAX_SIZE - PARTICLES.MIN_SIZE) + PARTICLES.MIN_SIZE,
             speed: Math.random() * (PARTICLES.MAX_SPEED - PARTICLES.MIN_SPEED) + PARTICLES.MIN_SPEED,
             angle: Math.random() * Math.PI * 2,
-            vx: 0,
-            vy: 0,
-            pushTime: 0
+            opacity: 0.3,
+            createdAt: Date.now()
         }));
 
-        this.updateState({
+        this.state = {
+            ...this.state,
             particles: initialParticles,
             isAnimating: true,
             lastUpdateTime: Date.now()
-        } as Partial<ParticleHandlerState>);
+        };
 
-        // Start animation loop
         this.startAnimation();
     }
 
     cleanup(): void {
-        super.cleanup();
         this.stopAnimation();
-        this.updateState({ isAnimating: false } as Partial<ParticleHandlerState>);
-    }
-
-    private startAnimation(): void {
-        const animate = () => {
-            this.handleEvent({ type: 'animate' });
-            this.animationFrameId = requestAnimationFrame(animate);
-        };
-        this.animationFrameId = requestAnimationFrame(animate);
-    }
-
-    private stopAnimation(): void {
-        if (this.animationFrameId !== null) {
-            cancelAnimationFrame(this.animationFrameId);
-            this.animationFrameId = null;
-        }
+        super.cleanup();
     }
 
     // Method to push particles away from a point
@@ -150,7 +151,10 @@ export class ParticleHandler extends AbstractHandler {
             return particle;
         });
 
-        this.updateState({ particles: updatedParticles } as Partial<ParticleHandlerState>);
+        this.state = {
+            ...this.state,
+            particles: updatedParticles
+        } as Partial<ParticleHandlerState>;
     }
 
     getState(): ParticleHandlerState {

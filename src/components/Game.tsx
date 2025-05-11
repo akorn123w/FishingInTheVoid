@@ -19,6 +19,7 @@ import { SquidExpression } from '../types/game';
 import BackgroundCell from './BackgroundCell';
 import FloatingNumber from './FloatingNumber';
 import FoodParticle from './FoodParticle';
+import { PurchasedItems } from './PurchasedItems/PurchasedItems';
 
 interface Position {
   x: number;
@@ -1611,6 +1612,12 @@ const Game: React.FC = () => {
           onPurchase={handleStorePurchase}
         />
       </div>
+
+      {/* Purchased Items List */}
+      <PurchasedItems
+        items={STORE_ITEMS}
+        purchasedItems={purchasedItems}
+      />
 
       {/* Petri dish background */}
       <div
