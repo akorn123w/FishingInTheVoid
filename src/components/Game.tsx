@@ -228,6 +228,39 @@ const CellClusterVisual: React.FC = () => {
           <stop offset="50%" stopColor="#8bb8f0" />
           <stop offset="100%" stopColor="#2a4a8a" />
         </radialGradient>
+
+        {/* New gradients for organelles */}
+        <radialGradient id="organelleGradient" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="50%" stopColor="#4a90e2" />
+          <stop offset="100%" stopColor="#2a4a8a" />
+        </radialGradient>
+        <radialGradient id="particleGradient" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#4a90e2" />
+        </radialGradient>
+        <radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#4a90e2" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#4a90e2" stopOpacity="0" />
+        </radialGradient>
+
+        {/* Animation keyframes */}
+        <style>
+          {`
+            @keyframes organellePulse {
+              0%, 100% { transform: scale(1); opacity: 0.8; }
+              50% { transform: scale(1.1); opacity: 1; }
+            }
+            @keyframes particleGlow {
+              0%, 100% { transform: scale(1); opacity: 0.6; }
+              50% { transform: scale(1.2); opacity: 1; }
+            }
+            @keyframes ringPulse {
+              0%, 100% { transform: scale(1); opacity: 0.3; }
+              50% { transform: scale(1.1); opacity: 0.6; }
+            }
+          `}
+        </style>
       </defs>
     </svg>
   );
@@ -476,6 +509,49 @@ const SquidForm: React.FC<{
           <stop offset="70%" stopColor="#4a90e2" />
           <stop offset="100%" stopColor="#2a4a8a" />
         </radialGradient>
+        <radialGradient id="coreGradient" cx="45%" cy="45%" r="50%">
+          <stop offset="0%" stopColor="#e0f7ff" />
+          <stop offset="50%" stopColor="#8bb8f0" />
+          <stop offset="100%" stopColor="#2a4a8a" />
+        </radialGradient>
+
+        {/* New gradients for auto-clicker parts */}
+        <radialGradient id="autoClickerCore" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="50%" stopColor="#4a90e2" />
+          <stop offset="100%" stopColor="#2a4a8a" />
+        </radialGradient>
+        <radialGradient id="autoClickerGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#4a90e2" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#4a90e2" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="autoClickerParticle" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#4a90e2" />
+        </radialGradient>
+
+        {/* New animations for auto-clicker parts */}
+        <style>
+          {`
+            @keyframes autoClickerRotate {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+            @keyframes autoClickerPulse {
+              0%, 100% { transform: scale(1); opacity: 0.8; }
+              50% { transform: scale(1.1); opacity: 1; }
+            }
+            @keyframes autoClickerGlow {
+              0%, 100% { opacity: 0.3; }
+              50% { opacity: 0.6; }
+            }
+            @keyframes autoClickerParticleEmit {
+              0% { transform: scale(0); opacity: 0; }
+              50% { transform: scale(1); opacity: 1; }
+              100% { transform: scale(0); opacity: 0; }
+            }
+          `}
+        </style>
       </defs>
     </svg>
   );
@@ -1230,7 +1306,60 @@ const Game: React.FC = () => {
                       transition: 'opacity 0.3s ease-out, transform 0.3s ease-out'
                     }}
                   >
-                    {/* ... organelle elements ... */}
+                    {/* Organelle elements with enhanced animations */}
+                    <g className="organelle-container">
+                      {/* Core organelle */}
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r="15"
+                        fill="url(#organelleGradient)"
+                        style={{
+                          animation: 'organellePulse 3s infinite ease-in-out',
+                          transformOrigin: 'center center',
+                        }}
+                      />
+
+                      {/* Orbiting particles */}
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <circle
+                          key={i}
+                          cx={Math.cos(time + (i * Math.PI * 2) / 3) * 25}
+                          cy={Math.sin(time + (i * Math.PI * 2) / 3) * 25}
+                          r="5"
+                          fill="url(#particleGradient)"
+                          style={{
+                            animation: 'particleGlow 2s infinite ease-in-out',
+                            animationDelay: `${i * 0.6}s`,
+                          }}
+                        />
+                      ))}
+
+                      {/* Glowing rings */}
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r="20"
+                        fill="none"
+                        stroke="url(#glowGradient)"
+                        strokeWidth="2"
+                        style={{
+                          animation: 'ringPulse 4s infinite ease-in-out',
+                        }}
+                      />
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r="25"
+                        fill="none"
+                        stroke="url(#glowGradient)"
+                        strokeWidth="1"
+                        style={{
+                          animation: 'ringPulse 4s infinite ease-in-out',
+                          animationDelay: '1s',
+                        }}
+                      />
+                    </g>
                   </g>
                 )}
               </g>
@@ -1703,6 +1832,107 @@ const Game: React.FC = () => {
         {renderCellGroup()}
       </div>
 
+      {/* Internal cell parts for auto-clickers */}
+      {internalParts.map((part) => (
+        <div
+          key={part.id}
+          className="internal-part"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: '40px',
+            height: '40px',
+            transform: `translate(-50%, -50%) rotate(${part.rotation}deg) translateY(-30px)`,
+            opacity: 0.9,
+            zIndex: clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? 1 : 2, // Behind squid face in squid phase, in front in cell phase
+            pointerEvents: 'none', // Ensure it doesn't interfere with clicks
+          }}
+        >
+          <svg
+            width="100%"
+            height="100%"
+            viewBox="0 0 100 100"
+            style={{
+              filter: 'drop-shadow(0 0 8px rgba(74, 144, 226, 0.5))',
+              visibility: clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION ? 'visible' : 'visible', // Always visible
+            }}
+          >
+            {/* Core element */}
+            <circle
+              cx="50"
+              cy="50"
+              r="20"
+              fill="url(#autoClickerCore)"
+              style={{
+                animation: 'autoClickerPulse 2s infinite ease-in-out',
+              }}
+            />
+
+            {/* Glowing ring */}
+            <circle
+              cx="50"
+              cy="50"
+              r="25"
+              fill="none"
+              stroke="url(#autoClickerGlow)"
+              strokeWidth="3"
+              style={{
+                animation: 'autoClickerGlow 2s infinite ease-in-out',
+              }}
+            />
+
+            {/* Rotating gear structure */}
+            <g
+              style={{
+                animation: 'autoClickerRotate 4s linear infinite',
+                transformOrigin: '50% 50%',
+              }}
+            >
+              {Array.from({ length: 8 }).map((_, i) => {
+                const angle = (i * Math.PI * 2) / 8;
+                const x1 = 50 + Math.cos(angle) * 15;
+                const y1 = 50 + Math.sin(angle) * 15;
+                const x2 = 50 + Math.cos(angle) * 30;
+                const y2 = 50 + Math.sin(angle) * 30;
+                return (
+                  <line
+                    key={i}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke="#4a90e2"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                );
+              })}
+            </g>
+
+            {/* Orbiting particles */}
+            {Array.from({ length: 3 }).map((_, i) => {
+              const angle = (time * 2 + (i * Math.PI * 2) / 3) % (Math.PI * 2);
+              const x = 50 + Math.cos(angle) * 35;
+              const y = 50 + Math.sin(angle) * 35;
+              return (
+                <circle
+                  key={i}
+                  cx={x}
+                  cy={y}
+                  r="4"
+                  fill="url(#autoClickerParticle)"
+                  style={{
+                    animation: 'autoClickerParticleEmit 1s infinite ease-in-out',
+                    animationDelay: `${i * 0.3}s`,
+                  }}
+                />
+              );
+            })}
+          </svg>
+        </div>
+      ))}
+
       {/* SquidForm - single source of truth */}
       {clickCount >= CLICK_THRESHOLDS.SQUID_TRANSFORMATION && (
         <div style={{
@@ -1713,7 +1943,8 @@ const Game: React.FC = () => {
           width: '300px',
           height: '300px',
           opacity: squidFormOpacity,
-          transition: 'opacity 0.5s ease-in-out'
+          transition: 'opacity 0.5s ease-in-out',
+          zIndex: 2, // Ensure squid is above auto-clicker parts
         }}>
           <SquidForm
             isBlinking={isSquidBlinking}
@@ -1725,34 +1956,6 @@ const Game: React.FC = () => {
           />
         </div>
       )}
-
-      {/* Internal cell parts for auto-clickers */}
-      {internalParts.map((part) => (
-        <div
-          key={part.id}
-          className="internal-part"
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            width: '20px',
-            height: '20px',
-            transform: `translate(-50%, -50%) rotate(${part.rotation}deg) translateY(-30px)`,
-            opacity: 0.8,
-            animation: 'pulse 2s infinite',
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              background: 'rgba(255, 255, 255, 0.3)',
-              borderRadius: '50%',
-              border: '2px solid rgba(255, 255, 255, 0.5)',
-            }}
-          />
-        </div>
-      ))}
     </div>
   );
 };
