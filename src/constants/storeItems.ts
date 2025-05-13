@@ -76,5 +76,20 @@ export const STORE_ITEMS: StoreItem[] = [
                 value: level.effect.value
             }
         }))
+    },
+    {
+        id: 'auto_click',
+        name: 'Auto-Click',
+        description: 'Automatically generates clicks every 2 seconds',
+        unlockAtClicks: 1000,
+        maxLevel: 5,
+        levels: createLevels(
+            1000,  // Base cost
+            2,     // Cost multiplier per level
+            1,     // Base effect (1 auto-clicker)
+            1,     // Effect multiplier per level (adds 1 auto-clicker per level)
+            5,     // Max level
+            ['rare', 'rare', 'epic', 'epic', 'legendary'] // Rarity progression
+        )
     }
 ];

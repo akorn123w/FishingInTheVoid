@@ -1,12 +1,13 @@
 import { StoreItem } from '../constants/storeItems';
 import { AbstractHandler, HandlerState, HandlerCallbacks } from './BaseHandler';
 
-interface StoreHandlerState extends HandlerState {
+export interface StoreHandlerState extends HandlerState {
     clickCount: number;
     clickBonus: number;
     clickMultiplier: number;
     temporaryMultiplier: number;
     purchasedItems: { [key: string]: number };
+    autoClickers?: number;
 }
 
 interface StoreHandlerCallbacks extends HandlerCallbacks {
@@ -16,17 +17,15 @@ interface StoreHandlerCallbacks extends HandlerCallbacks {
     setTemporaryMultiplier: (value: number) => void;
     setPurchasedItems: (value: { [key: string]: number } | ((prev: { [key: string]: number }) => { [key: string]: number })) => void;
     setTemporaryMultiplierTimeout: (timeout: NodeJS.Timeout | null) => void;
+    setAutoClickers: (value: number | ((prev: number) => number)) => void;
 }
 
 export class StoreHandler extends AbstractHandler {
     private storeCallbacks: StoreHandlerCallbacks;
     private temporaryMultiplierTimeout: NodeJS.Timeout | null;
 
-    constructor(
-        initialState: Partial<StoreHandlerState>,
-        callbacks: StoreHandlerCallbacks
-    ) {
-        super(initialState, callbacks);
+    constructor(callbacks: StoreHandlerCallbacks) {
+        super({ isActive: true }, callbacks);
         this.storeCallbacks = callbacks;
         this.temporaryMultiplierTimeout = null;
     }
@@ -39,10 +38,10 @@ export class StoreHandler extends AbstractHandler {
         };
     }
 
-    handleEvent(item: StoreItem): void {
+    handleEvent(item: StoreItem): Partial<StoreHandlerState> {
         if (!this.state.isActive) {
             this.callbacks.onError(new Error('Store handler is not active'));
-            return;
+            return {};
         }
 
         const state = this.getState() as StoreHandlerState;
@@ -51,12 +50,12 @@ export class StoreHandler extends AbstractHandler {
 
         if (!nextLevel) {
             this.callbacks.onError(new Error('Item is at max level'));
-            return;
+            return {};
         }
 
         if (state.clickCount < nextLevel.cost) {
             this.callbacks.onError(new Error('Not enough clicks'));
-            return;
+            return {};
         }
 
         // Update click count
@@ -68,17 +67,35 @@ export class StoreHandler extends AbstractHandler {
             [item.id]: currentLevel + 1
         }));
 
+        const newState: Partial<StoreHandlerState> = {
+            clickCount: state.clickCount - nextLevel.cost,
+            purchasedItems: {
+                ...state.purchasedItems,
+                [item.id]: currentLevel + 1
+            }
+        };
+
         // Apply effect based on type
         if (nextLevel.effect.type === 'additive') {
-            this.storeCallbacks.setClickBonus(prev => prev + nextLevel.effect.value);
+            if (item.id === 'auto_click') {
+                const newAutoClickers = (state.autoClickers || 0) + nextLevel.effect.value;
+                this.storeCallbacks.setAutoClickers(() => newAutoClickers);
+                newState.autoClickers = newAutoClickers;
+            } else {
+                this.storeCallbacks.setClickBonus(prev => prev + nextLevel.effect.value);
+                newState.clickBonus = state.clickBonus + nextLevel.effect.value;
+            }
         } else if (nextLevel.effect.type === 'multiplicative') {
             this.storeCallbacks.setClickMultiplier(prev => prev * nextLevel.effect.value);
+            newState.clickMultiplier = state.clickMultiplier * nextLevel.effect.value;
         }
 
         // Update handler state
         this.updateState({
             timestamp: Date.now()
         });
+
+        return newState;
     }
 
     cleanup(): void {

@@ -5,6 +5,7 @@ export interface StoreState {
     clickBonus: number;
     clickMultiplier: number;
     purchasedItems: { [key: string]: number };
+    autoClickers: number;
 }
 
 export const handlePurchase = (
@@ -33,7 +34,11 @@ export const handlePurchase = (
 
     // Apply effect based on type
     if (nextLevel.effect.type === 'additive') {
-        newState.clickBonus = state.clickBonus + nextLevel.effect.value;
+        if (item.id === 'auto_click') {
+            newState.autoClickers = (state.autoClickers || 0) + nextLevel.effect.value;
+        } else {
+            newState.clickBonus = state.clickBonus + nextLevel.effect.value;
+        }
     } else if (nextLevel.effect.type === 'multiplicative') {
         newState.clickMultiplier = state.clickMultiplier * nextLevel.effect.value;
     }
